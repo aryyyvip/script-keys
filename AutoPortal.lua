@@ -1,5 +1,5 @@
 -- ==========================================
--- SCRIPT FULL: GUI + ANTI-CRASH + FIXED DOORS
+-- SCRIPT FULL: GUI (ANDROID/MUMU PLAYER SAFE) + TARGETED TELEPORT
 -- ==========================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -7,11 +7,24 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Menggunakan pelindung GUI agar kompatibel dengan semua jenis Executor
-local CoreGui = pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+-- ========================================
+-- [PERBAIKAN KRUSIAL UNTUK EMULATOR/ANDROID]
+-- Mencari UI Parent yang aman dan tidak diblokir
+-- ========================================
+local UI_PARENT
+local success, result = pcall(function() 
+    return (gethui and gethui()) or game:GetService("CoreGui") 
+end)
 
-if CoreGui:FindFirstChild("CustomKeysGUI") then
-    CoreGui.CustomKeysGUI:Destroy()
+if success and result then
+    UI_PARENT = result
+else
+    UI_PARENT = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+-- Mencegah GUI menumpuk
+if UI_PARENT:FindFirstChild("CustomKeysGUI") then
+    UI_PARENT.CustomKeysGUI:Destroy()
 end
 
 local Toggles = {
@@ -22,11 +35,11 @@ local Toggles = {
 }
 
 -- ==========================================
--- 1. TAMPILAN GUI (Dilengkapi Minimize & Close)
+-- 1. TAMPILAN GUI
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomKeysGUI"
-ScreenGui.Parent = CoreGui 
+ScreenGui.Parent = UI_PARENT 
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 220, 0, 260)
@@ -175,32 +188,28 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (ANTI-CRASH)
+-- 2. LOGIKA FITUR SCRIPT (Targeted Teleport + Pcall)
 -- ==========================================
 
 task.spawn(function()
     while task.wait(0.2) do
         if not Toggles.AutoFarm then continue end
-        if not ScreenGui.Parent then break end 
+        if not ScreenGui.Parent then break end
         
-        -- MENGGUNAKAN PCALL AGAR SCRIPT KEBAL ERROR
+        -- Membungkus dengan pcall agar error Android tidak menghentikan loop
         pcall(function()
             local character = LocalPlayer.Character
             if not character or not character:FindFirstChild("HumanoidRootPart") then return end
             local rootPart = character.HumanoidRootPart
             local humanoid = character:FindFirstChild("Humanoid")
             
-            -- [PERBAIKAN]: AUTO-EQUIP HANYA UNTUK KUNCI
+            -- AUTO-EQUIP KUNCI
             local backpack = LocalPlayer:FindFirstChild("Backpack")
             if backpack and humanoid then
                 for _, tool in pairs(backpack:GetChildren()) do
                     if tool:IsA("Tool") then
-                        local tName = string.lower(tool.Name)
-                        -- Hanya equip jika namanya mengandung "key" atau "kunci"
-                        if string.find(tName, "key") or string.find(tName, "kunci") then
-                            humanoid:EquipTool(tool)
-                            task.wait(0.1)
-                        end
+                        humanoid:EquipTool(tool)
+                        task.wait(0.1)
                     end
                 end
             end
@@ -227,20 +236,27 @@ task.spawn(function()
                         local dist = (rootPart.Position - obj.Parent.Position).Magnitude
                         local itemData = {prompt = obj, part = obj.Parent, distance = dist}
                         
-                        if isPortal then table.insert(portals, itemData)
-                        elseif isKey then table.insert(keys, itemData)
-                        elseif isDoor then table.insert(doors, itemData)
+                        if isPortal then
+                            table.insert(portals, itemData)
+                        elseif isKey then
+                            table.insert(keys, itemData)
+                        elseif isDoor then
+                            table.insert(doors, itemData)
                         end
                     end
                 end
             end
             
-            table.sort(keys, function(a, b) return a.distance < b.distance end)
-            table.sort(doors, function(a, b) return a.distance < b.distance end)
-            table.sort(portals, function(a, b) return a.distance < b.distance end)
+            local function sortClosest(a, b)
+                return a.distance < b.distance
+            end
+            table.sort(keys, sortClosest)
+            table.sort(doors, sortClosest)
+            table.sort(portals, sortClosest)
             
             local actionTaken = false
 
+            -- PRIORITAS 1: KUNCI
             if Toggles.PickupKeys and #keys > 0 then
                 local target = keys[1]
                 if target.distance < 400 then
@@ -249,12 +265,16 @@ task.spawn(function()
                     
                     rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
                     task.wait(0.1)
-                    if fireproximityprompt then fireproximityprompt(target.prompt, 1, true) end
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                    end
                     actionTaken = true
                     task.wait(0.3)
                 end
             end
 
+            -- PRIORITAS 2: PINTU
             if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
                 local target = doors[1]
                 if target.distance < 400 then
@@ -262,25 +282,32 @@ task.spawn(function()
                     target.prompt.MaxActivationDistance = 50
                     
                     rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
-                    task.wait(0.4) -- Jeda agar server memastikan kunci sudah dipegang
-                    if fireproximityprompt then fireproximityprompt(target.prompt, 1, true) end
+                    task.wait(0.4) 
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                    end
                     actionTaken = true
                     task.wait(0.3)
                 end
             end
 
-            if Toggles.JoinGame and not actionTaken and #portals > 0 then
-                local target = portals[1]
-                if target.distance < 400 then
+            -- PRIORITAS 3: PORTAL
+            if Toggles.JoinGame and not actionTaken then
+                if #portals > 0 and portals[1].distance < 400 then
+                    local target = portals[1]
                     rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
                     task.wait(0.1)
-                    if fireproximityprompt then fireproximityprompt(target.prompt, 1, true) end
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                    end
                     task.wait(5)
                 end
             end
             
-        end)
+        end) -- Penutup pcall
     end
 end)
 
-print("Custom GUI vFinal (Anti-Crash) loaded successfully!")
+print("Custom GUI vFinal (MuMu Android Support) loaded successfully!")
