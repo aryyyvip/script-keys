@@ -132,41 +132,39 @@ FooterSubtext.Parent = FooterFrame
 
 -- Sistem Fungsional Baru untuk Unlock Doors & Pickup Keys
 task.spawn(function()
-    while task.wait(0.5) do -- Loop cepat tapi efisien
+    while task.wait(0.5) do
         if Toggles.AutoFarm then
             local character = LocalPlayer.Character
             if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
-            
-            local currentPos = character.HumanoidRootPart.Position
 
-            -- Cari semua objek yang bisa diinteraksi di seluruh game
             for _, obj in pairs(workspace:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") and obj.Enabled then
                     local parent = obj.Parent
                     local isFarming = false
                     
-                    -- Logika Pickup Keys: Cari objek dengan nama 'Key'
+                    -- Logika Pickup Keys
                     if Toggles.PickupKeys and (string.find(obj.Name:lower(), "key") or string.find(parent.Name:lower(), "key")) then
                         isFarming = true
-                        print("Farming Key: " .. parent.Name)
                     end
                     
-                    -- Logika Unlock Doors: Cari objek dengan nama 'Door' atau 'Lock'
+                    -- Logika Unlock Doors
                     if not isFarming and Toggles.UnlockDoors and (string.find(obj.Name:lower(), "door") or string.find(parent.Name:lower(), "door") or string.find(obj.Name:lower(), "lock") or string.find(parent.Name:lower(), "lock")) then
                         isFarming = true
-                        print("Farming Door: " .. parent.Name)
                     end
                     
                     if isFarming then
-                        -- Teleport ke objek untuk berinteraksi
-                        character.HumanoidRootPart.CFrame = parent.CFrame * CFrame.new(0, 0, 2) -- Menempatkan pemain sedikit di depan
-                        task.wait(0.1) -- Jeda teleport
+                        character.HumanoidRootPart.CFrame = parent.CFrame * CFrame.new(0, 0, 2)
+                        task.wait(0.2) 
                         
-                        -- Picu interaksi prompt (ini akan menekan tombol interaksi, misal 'E')
-                        obj:InputHoldBegin()
-                        task.wait(obj.HoldDuration) -- Menunggu durasi tahan prompt
-                        obj:InputHoldEnd()
-                        task.wait(0.2) -- Jeda antar interaksi
+                        -- Menggunakan fireproximityprompt jika didukung executor (Lebih instan dan akurat)
+                        if fireproximityprompt then
+                            fireproximityprompt(obj, 1, true)
+                        else
+                            obj:InputHoldBegin()
+                            task.wait(obj.HoldDuration) 
+                            obj:InputHoldEnd()
+                        end
+                        task.wait(0.3)
                     end
                 end
             end
@@ -174,27 +172,50 @@ task.spawn(function()
     end
 end)
 
--- Sistem Auto Join Portal (Sama seperti sebelumnya, memastikan Anda tidak terjebak di lobi)
+-- Sistem Auto Join Game (Diperbarui dengan Trigger Paksa)
 task.spawn(function()
-    while task.wait(3) do
+    while task.wait(2) do
         if Toggles.AutoFarm and Toggles.JoinGame then
             local character = LocalPlayer.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
+                local rootPart = character.HumanoidRootPart
                 
-                -- Mencari portal sentuh di Lobby
                 for _, obj in pairs(workspace:GetDescendants()) do
+                    -- Skenario A: Portal menggunakan tombol (ProximityPrompt)
+                    if obj:IsA("ProximityPrompt") then
+                        local actText = string.lower(obj.ActionText)
+                        if string.find(actText, "join") or string.find(actText, "play") or string.find(actText, "enter") then
+                            rootPart.CFrame = obj.Parent.CFrame
+                            task.wait(0.2)
+                            if fireproximityprompt then
+                                fireproximityprompt(obj, 1, true)
+                            end
+                            task.wait(5) -- Jeda agar tidak spam saat loading
+                        end
+                    end
+                    
+                    -- Skenario B: Portal sentuh (seperti portal ungu pada gambar Anda)
                     if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
                         local portalPart = obj.Parent
                         if portalPart and portalPart:IsA("BasePart") then
-                            -- Teleportasi ke portal
-                            character.HumanoidRootPart.CFrame = portalPart.CFrame
-                            task.wait(6) -- Jeda setelah pindah server/room
+                            -- Pindahkan karakter ke portal
+                            rootPart.CFrame = portalPart.CFrame
+                            task.wait(0.2)
+                            
+                            -- Paksa engine Roblox mendaftarkan event "Sentuhan" (Collision)
+                            if firetouchinterest then
+                                firetouchinterest(rootPart, portalPart, 0) -- 0 = Mulai sentuh
+                                task.wait(0.1)
+                                firetouchinterest(rootPart, portalPart, 1) -- 1 = Berhenti sentuh
+                            end
+                            task.wait(5) -- Jeda saat masuk ruangan
                         end
                     end
                 end
+                
             end
         end
     end
 end)
 
-print("Custom GUI v2.0 (Fungsional) loaded successfully!")
+print("Custom GUI v2.1 (Join Fix) loaded successfully!")
