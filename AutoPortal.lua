@@ -1,5 +1,5 @@
 -- ==========================================
--- SCRIPT FULL: GUI + STRICT FILTER (KUNCI & PINTU SAJA)
+-- SCRIPT FULL: GUI + ANTI-LEMARI + PORTAL FIX
 -- ==========================================
 
 if not game:IsLoaded() then game.Loaded:Wait() end
@@ -8,7 +8,6 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
--- Mencegah GUI menumpuk
 if CoreGui:FindFirstChild("CustomKeysGUI") then
     CoreGui.CustomKeysGUI:Destroy()
 end
@@ -156,7 +155,6 @@ FooterSubtext.TextSize = 12
 FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
--- Logika Tombol Minimize & Close
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
@@ -175,7 +173,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (FILTER KETAT: KUNCI & PINTU)
+-- 2. LOGIKA FITUR SCRIPT (ANTI-LEMARI & PORTAL)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.2) do
@@ -201,59 +199,65 @@ task.spawn(function()
             
             local keys = {}
             local doors = {}
-            local portals = {}
+            local portalPart = nil
             
-            -- SCANNING DAN FILTERING KETAT
-            for _, obj in pairs(workspace:GetDescendants()) do
-                
-                -- Filter untuk Objek ber-tombol
-                if obj:IsA("ProximityPrompt") then
-                    if obj:IsDescendantOf(character) then continue end
-                    
-                    local aText = string.lower(obj.ActionText)
-                    local oText = string.lower(obj.ObjectText)
-                    local pName = string.lower(obj.Parent and obj.Parent.Name or "")
-                    local oName = string.lower(obj.Name)
-                    
-                    -- Filter 1: Portal (Join/Exit)
-                    local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk")
-                    
-                    -- Filter 2: Kunci
-                    local isKey = string.find(oText, "kunci") or string.find(oText, "key") or string.find(pName, "key") or string.find(oName, "key")
-                    
-                    -- Filter 3: Pintu/Gembok
-                    local isDoor = string.find(oText, "pintu") or string.find(oText, "door") or string.find(pName, "door") or string.find(pName, "lock") or string.find(pName, "padlock") or string.find(oText, "gembok") or string.find(aText, "buka") or string.find(aText, "open") or string.find(aText, "unlock")
-
-                    if obj.Parent and obj.Parent:IsA("BasePart") then
-                        local dist = (rootPart.Position - obj.Parent.Position).Magnitude
-                        
-                        if isPortal then
-                            table.insert(portals, {part = obj.Parent, prompt = obj, distance = dist, isTouch = false})
-                        elseif isKey then
-                            table.insert(keys, {part = obj.Parent, prompt = obj, distance = dist})
-                        elseif isDoor then
-                            table.insert(doors, {part = obj.Parent, prompt = obj, distance = dist})
+            -- 1. MENCARI PORTAL "DIMULAI DI SINI" DI LOBI
+            if Toggles.JoinGame then
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    -- Mencari papan tulisan portal
+                    if (obj:IsA("TextLabel") or obj:IsA("BillboardGui") or obj:IsA("SurfaceGui")) then
+                        if string.find(string.lower(tostring(obj.Text or obj.Name)), "dimulai") or string.find(string.lower(tostring(obj.Text or obj.Name)), "menyaksikan") then
+                            -- Menemukan lantai/blok portal
+                            local parent = obj.Parent
+                            while parent and not parent:IsA("BasePart") do
+                                parent = parent.Parent
+                            end
+                            if parent then
+                                portalPart = parent
+                                break
+                            end
                         end
-                    end
-                    
-                -- Filter untuk Portal Sentuh di Lobi
-                elseif obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
-                    local portalPart = obj.Parent
-                    if portalPart and portalPart:IsA("BasePart") then
-                        local dist = (rootPart.Position - portalPart.Position).Magnitude
-                        table.insert(portals, {part = portalPart, distance = dist, isTouch = true})
                     end
                 end
             end
             
-            -- Urutkan berdasarkan jarak terdekat
+            -- 2. MENCARI KUNCI DAN PINTU
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
+                    if obj:IsDescendantOf(character) then continue end
+                    
+                    local combinedText = string.lower(obj.ActionText .. " " .. obj.ObjectText .. " " .. (obj.Parent and obj.Parent.Name or "") .. " " .. obj.Name)
+                    
+                    -- BLOKIR BENDA PENGGANGGU (Sembunyi, Lemari, Toko, dll)
+                    if string.find(combinedText, "lemari") or string.find(combinedText, "sembunyi") or string.find(combinedText, "hide") or string.find(combinedText, "closet") or string.find(combinedText, "toko") or string.find(combinedText, "beli") or string.find(combinedText, "shop") then
+                        continue -- Lewati benda ini!
+                    end
+                    
+                    if obj.Parent and obj.Parent:IsA("BasePart") then
+                        local dist = (rootPart.Position - obj.Parent.Position).Magnitude
+                        
+                        -- Filter Kunci
+                        if string.find(combinedText, "kunci") or string.find(combinedText, "key") then
+                            table.insert(keys, {prompt = obj, part = obj.Parent, distance = dist})
+                            
+                        -- Filter Pintu (Hanya menerima kata Pintu/Door/Gembok/Lock)
+                        elseif string.find(combinedText, "pintu") or string.find(combinedText, "door") or string.find(combinedText, "gembok") or string.find(combinedText, "lock") or string.find(combinedText, "padlock") then
+                            table.insert(doors, {prompt = obj, part = obj.Parent, distance = dist})
+                            
+                        -- Portal via Tombol (Exit)
+                        elseif string.find(combinedText, "exit") or string.find(combinedText, "keluar") or string.find(combinedText, "join") then
+                            portalPart = obj.Parent
+                        end
+                    end
+                end
+            end
+            
             table.sort(keys, function(a, b) return a.distance < b.distance end)
             table.sort(doors, function(a, b) return a.distance < b.distance end)
-            table.sort(portals, function(a, b) return a.distance < b.distance end)
             
             local actionTaken = false
 
-            -- EKSEKUSI 1: AMBIL KUNCI
+            -- EKSEKUSI 1: KUNCI
             if Toggles.PickupKeys and #keys > 0 then
                 local target = keys[1]
                 if target.distance < 400 then
@@ -271,19 +275,19 @@ task.spawn(function()
                 end
             end
 
-            -- EKSEKUSI 2: BUKA PINTU
+            -- EKSEKUSI 2: PINTU
             if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
                 local target = doors[1]
                 if target.distance < 400 then
                     target.prompt.Enabled = true
                     
                     rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0), target.part.Position)
-                    task.wait(0.4) -- Jeda agak lama agar kunci sempat di-equip server
+                    task.wait(0.3) 
                     
                     if fireproximityprompt then
                         fireproximityprompt(target.prompt, 1, true)
                         task.wait(0.1)
-                        fireproximityprompt(target.prompt, 1, true) -- Dobel klik anti-gagal
+                        fireproximityprompt(target.prompt, 1, true)
                     end
                     
                     actionTaken = true
@@ -291,34 +295,36 @@ task.spawn(function()
                 end
             end
 
-            -- EKSEKUSI 3: MASUK PORTAL LOBI ATAU EXIT
-            if Toggles.JoinGame and not actionTaken then
-                if #portals > 0 and portals[1].distance < 400 then
-                    local target = portals[1]
+            -- EKSEKUSI 3: JOIN GAME / PORTAL LOBI
+            -- Hanya masuk lobi jika tidak ada lagi kunci atau pintu (sedang di lobi atau sudah tamat)
+            if Toggles.JoinGame and not actionTaken and #keys == 0 and #doors == 0 and portalPart then
+                local dist = (rootPart.Position - portalPart.Position).Magnitude
+                if dist < 500 then
+                    rootPart.CFrame = portalPart.CFrame + Vector3.new(0, 3, 0)
+                    task.wait(0.2)
                     
-                    if target.isTouch then
-                        rootPart.CFrame = target.part.CFrame
-                        task.wait(0.2)
-                        if firetouchinterest then
-                            firetouchinterest(rootPart, target.part, 0)
-                            task.wait(0.1)
-                            firetouchinterest(rootPart, target.part, 1)
-                        end
-                        task.wait(5)
-                        
-                    else
-                        rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
-                        task.wait(0.2)
-                        if fireproximityprompt then
-                            fireproximityprompt(target.prompt, 1, true)
-                        end
-                        task.wait(5)
+                    -- Paksa interaksi sentuhan
+                    if firetouchinterest then
+                        firetouchinterest(rootPart, portalPart, 0)
+                        task.wait(0.1)
+                        firetouchinterest(rootPart, portalPart, 1)
                     end
+                    
+                    -- Paksa karakter berjalan sedikit untuk men-trigger portal jika firetouchinterest diblokir
+                    if humanoid then
+                        humanoid:MoveTo(portalPart.Position + Vector3.new(0, 0, 5))
+                    end
+                    
+                    -- Paksa interaksi tombol jika portal itu menggunakan tombol E
+                    local prompt = portalPart:FindFirstChildWhichIsA("ProximityPrompt")
+                    if prompt and fireproximityprompt then
+                        fireproximityprompt(prompt, 1, true)
+                    end
+                    
+                    task.wait(6) -- Jeda aman agar tidak spam saat layar loading
                 end
             end
             
         end)
     end
 end)
-
-print("GUI & Script Strict Filter (Kunci & Pintu) Berhasil Dimuat!")
