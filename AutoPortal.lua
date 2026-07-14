@@ -127,7 +127,7 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Targeted Teleport & Anti-Stuck)
+-- 2. LOGIKA FITUR SCRIPT (Auto-Equip & Door Fix)
 -- ==========================================
 
 task.spawn(function()
@@ -138,11 +138,25 @@ task.spawn(function()
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
+        -- ========================================
+        -- [BARU] FITUR AUTO-EQUIP KUNCI
+        -- Memaksa karakter memegang kunci yang ada di tas
+        -- ========================================
+        local backpack = LocalPlayer:FindFirstChild("Backpack")
+        if backpack then
+            for _, tool in pairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tool.Parent = character
+                    task.wait(0.1) -- Jeda sebentar agar server mendaftarkan kunci di tangan
+                end
+            end
+        end
+        
         local keys = {}
         local doors = {}
         local portals = {}
         
-        -- 1. PEMINDAIAN & FILTERING OBJEK SPESIFIK
+        -- 1. PEMINDAIAN & FILTERING OBJEK
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("ProximityPrompt") then
                 local aText = string.lower(obj.ActionText)
@@ -150,16 +164,15 @@ task.spawn(function()
                 local pName = string.lower(obj.Parent.Name)
                 local oName = string.lower(obj.Name)
                 
-                -- Kategori 1: Portal (Prioritas Paling Bawah)
+                -- Deteksi Portal
                 local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk")
                 
-                -- Kategori 2: Kunci (Prioritas Utama)
+                -- Deteksi Kunci
                 local isKey = string.find(oText, "kunci") or string.find(oText, "key") or string.find(pName, "key") or string.find(oName, "key")
                 
-                -- Kategori 3: Pintu & Gembok (Prioritas Kedua)
-                local isDoor = string.find(oText, "pintu") or string.find(oText, "door") or string.find(pName, "door") or string.find(pName, "lock") or string.find(oText, "gembok") or string.find(aText, "buka") or string.find(aText, "open")
+                -- Deteksi Pintu/Gembok (Ditambahkan kata kunci 'padlock', 'unlock')
+                local isDoor = string.find(oText, "pintu") or string.find(oText, "door") or string.find(pName, "door") or string.find(pName, "lock") or string.find(pName, "padlock") or string.find(oText, "gembok") or string.find(aText, "buka") or string.find(aText, "open") or string.find(aText, "unlock")
 
-                -- Memasukkan objek ke tabel masing-masing beserta jaraknya
                 if obj.Parent and obj.Parent:IsA("BasePart") then
                     local dist = (rootPart.Position - obj.Parent.Position).Magnitude
                     local itemData = {prompt = obj, part = obj.Parent, distance = dist}
@@ -175,7 +188,6 @@ task.spawn(function()
             end
         end
         
-        -- Fungsi untuk mengurutkan dari yang paling dekat
         local function sortClosest(a, b)
             return a.distance < b.distance
         end
@@ -186,18 +198,16 @@ task.spawn(function()
         local actionTaken = false
 
         -- ========================================
-        -- 2. EKSEKUSI LANGSUNG (TELEPORT PRESISI)
+        -- 2. EKSEKUSI TARGET
         -- ========================================
 
-        -- PRIORITAS 1: LANGSUNG KE KUNCI TERDEKAT
+        -- PRIORITAS 1: AMBIL KUNCI
         if Toggles.PickupKeys and #keys > 0 then
             local target = keys[1]
             if target.distance < 400 then
                 target.prompt.Enabled = true
                 target.prompt.MaxActivationDistance = 50
                 
-                -- Teleport ke koordinat absolut (3 studs di atas, 3 studs di samping objek)
-                -- Ini mencegah karakter masuk/nyangkut ke dalam hitbox lemari jika kunci ada di dalam lemari
                 rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
                 task.wait(0.1)
                 
@@ -211,27 +221,32 @@ task.spawn(function()
             end
         end
 
-        -- PRIORITAS 2: LANGSUNG BUKA PINTU
+        -- PRIORITAS 2: BUKA PINTU
         if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
             local target = doors[1]
             if target.distance < 400 then
                 target.prompt.Enabled = true
                 target.prompt.MaxActivationDistance = 50
                 
+                -- Bergerak ke arah pintu
                 rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
-                task.wait(0.1)
+                task.wait(0.2) -- Jeda diperpanjang sedikit agar game menyadari kunci ada di tangan
                 
                 if fireproximityprompt then
                     fireproximityprompt(target.prompt, 1, true)
+                else
+                    target.prompt:InputHoldBegin()
+                    task.wait(target.prompt.HoldDuration)
+                    target.prompt:InputHoldEnd()
                 end
                 
-                print("[INFO] Pintu dibuka!")
+                print("[INFO] Mengeksekusi Pintu/Gembok!")
                 actionTaken = true
                 task.wait(0.3)
             end
         end
 
-        -- PRIORITAS 3: MASUK/KELUAR PORTAL
+        -- PRIORITAS 3: PORTAL
         if Toggles.JoinGame and not actionTaken then
             if #portals > 0 and portals[1].distance < 400 then
                 local target = portals[1]
@@ -248,4 +263,4 @@ task.spawn(function()
     end
 end)
 
-print("Custom GUI vFinal (Direct Teleport & Anti-Stuck) loaded successfully!")
+print("Custom GUI vFinal (Auto-Equip Applied) loaded successfully!")
