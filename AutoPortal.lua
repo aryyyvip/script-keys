@@ -111,24 +111,26 @@ Footer.Font = Enum.Font.SourceSans
 Footer.Parent = MainFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Bekerja di Latar Belakang)
+-- 2. LOGIKA FITUR SCRIPT (Revisi 2)
 -- ==========================================
 
--- Sistem Auto Join Portal (Diaktifkan lewat centang "Join Game" & "AutoFarm")
+-- Sistem Auto Join Portal
 task.spawn(function()
-    while task.wait(3) do
-        -- Hanya berjalan jika "AutoFarm" DAN "Join Game" dicentang
+    while task.wait(2) do
         if Toggles.AutoFarm and Toggles.JoinGame then
             local character = LocalPlayer.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
-                -- Mencari portal sentuh di Lobby
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
                         local portalPart = obj.Parent
                         if portalPart and portalPart:IsA("BasePart") then
-                            -- Teleportasi ke portal
                             character.HumanoidRootPart.CFrame = portalPart.CFrame
-                            task.wait(6) -- Jeda setelah pindah server/room
+                            print("[LOG] Menyentuh portal: " .. portalPart.Name)
+                            
+                            -- Jeda 12 detik agar karakter sempat dimuat di map baru
+                            -- break digunakan agar tidak langsung menyentuh portal lobby berulang kali
+                            task.wait(12) 
+                            break 
                         end
                     end
                 end
@@ -137,77 +139,56 @@ task.spawn(function()
     end
 end)
 
--- Sistem Unlock Doors
+-- Sistem Unlock Doors & Pickup Keys (Digabung agar lebih efisien)
 task.spawn(function()
-    while task.wait(0.5) do
-        if Toggles.AutoFarm and Toggles.UnlockDoors then
+    while task.wait(1) do
+        -- Hanya jalan jika AutoFarm aktif dan (Unlock Doors atau Pickup Keys) aktif
+        if Toggles.AutoFarm and (Toggles.UnlockDoors or Toggles.PickupKeys) then
             local character = LocalPlayer.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
-                -- Mencari objek dengan ProximityPrompt (interaksi tombol 'E' dll) di dalam Workspace
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") then
-                        local parentObj = obj.Parent
-                        local parentName = string.lower(parentObj.Name)
+                
+                -- Mencari semua ProximityPrompt (Tombol Interaksi E) di map
+                for _, prompt in pairs(workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        local parentObj = prompt.Parent
                         
-                        -- Memastikan ini adalah pintu atau gembok
-                        if string.find(parentName, "door") or string.find(parentName, "lock") then
-                            -- Teleportasi ke depan pintu
-                            character.HumanoidRootPart.CFrame = parentObj.CFrame
-                            task.wait(0.2)
-                            
-                            -- Otomatis mengeksekusi 'ProximityPrompt' tanpa ditekan manual
-                            if fireproximityprompt then
-                                fireproximityprompt(obj, 1, true)
+                        -- Membaca nama komponen dan teks UI dari tombol interaksi (dijadikan huruf kecil semua)
+                        local parentName = string.lower(parentObj.Name)
+                        local actionText = string.lower(prompt.ActionText) -- Cth: "Open", "Pick Up"
+                        local objectText = string.lower(prompt.ObjectText) -- Cth: "Door", "Key"
+                        
+                        -- LOGIKA MENGAMBIL KUNCI
+                        if Toggles.PickupKeys then
+                            if string.find(parentName, "key") or string.find(actionText, "pick") or string.find(actionText, "grab") or string.find(objectText, "key") then
+                                character.HumanoidRootPart.CFrame = parentObj.CFrame
+                                task.wait(0.3) -- Jeda agar teleport sempurna
+                                if fireproximityprompt then
+                                    fireproximityprompt(prompt, 1, true)
+                                    print("[LOG] Kunci berhasil diambil!")
+                                end
+                                task.wait(0.5)
                             end
-                            task.wait(0.5) -- Jeda sebentar agar tidak terdeteksi spam
                         end
+                        
+                        -- LOGIKA MEMBUKA PINTU/GEMBOK
+                        if Toggles.UnlockDoors then
+                            if string.find(parentName, "door") or string.find(parentName, "lock") or string.find(actionText, "open") or string.find(actionText, "unlock") or string.find(objectText, "door") then
+                                character.HumanoidRootPart.CFrame = parentObj.CFrame
+                                task.wait(0.3)
+                                if fireproximityprompt then
+                                    fireproximityprompt(prompt, 1, true)
+                                    print("[LOG] Pintu/Gembok berhasil dibuka!")
+                                end
+                                task.wait(0.5)
+                            end
+                        end
+                        
                     end
                 end
+                
             end
         end
     end
 end)
 
--- Sistem Pickup Keys
-task.spawn(function()
-    while task.wait(0.5) do
-        if Toggles.AutoFarm and Toggles.PickupKeys then
-            local character = LocalPlayer.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    -- Skenario 1: Jika kunci menggunakan sistem ProximityPrompt
-                    if obj:IsA("ProximityPrompt") then
-                        local parentObj = obj.Parent
-                        if string.find(string.lower(parentObj.Name), "key") then
-                            character.HumanoidRootPart.CFrame = parentObj.CFrame
-                            task.wait(0.2)
-                            if fireproximityprompt then
-                                fireproximityprompt(obj, 1, true)
-                            end
-                            task.wait(0.5)
-                        end
-                    
-                    -- Skenario 2: Jika kunci berbentuk Tools yang jatuh di lantai dan bisa disentuh
-                    elseif obj:IsA("Tool") and string.find(string.lower(obj.Name), "key") then
-                        local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
-                        if handle then
-                            -- Teleportasi ke Kunci
-                            character.HumanoidRootPart.CFrame = handle.CFrame
-                            task.wait(0.2)
-                            
-                            -- Memalsukan event "sentuhan" antara pemain dan kunci
-                            if firetouchinterest then
-                                firetouchinterest(character.HumanoidRootPart, handle, 0)
-                                task.wait(0.1)
-                                firetouchinterest(character.HumanoidRootPart, handle, 1)
-                            end
-                            task.wait(0.5)
-                        end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-print("Custom GUI loaded successfully!")
+print("Custom GUI v2 loaded successfully!")
