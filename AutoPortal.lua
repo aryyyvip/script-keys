@@ -1,14 +1,27 @@
--- Menunggu game dimuat sepenuhnya
+-- ==========================================
+-- SCRIPT FULL: TARGETED TELEPORT (MUMU SAFE + DOOR FIX + DEBUG)
+-- ==========================================
+
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local CoreGui = game:GetService("CoreGui")
+
+-- Menggunakan pelindung GUI agar kompatibel dengan Mumu Player / Executor Android
+local UI_PARENT
+local success, result = pcall(function() 
+    return (gethui and gethui()) or game:GetService("CoreGui") 
+end)
+
+if success and result then
+    UI_PARENT = result
+else
+    UI_PARENT = LocalPlayer:WaitForChild("PlayerGui")
+end
 
 -- Mencegah GUI menumpuk
-local uiContainer = pcall(function() return gethui() end) and gethui() or CoreGui
-if uiContainer:FindFirstChild("CustomKeysGUI") then
-    uiContainer.CustomKeysGUI:Destroy()
+if UI_PARENT:FindFirstChild("CustomKeysGUI") then
+    UI_PARENT.CustomKeysGUI:Destroy()
 end
 
 local Toggles = {
@@ -19,11 +32,11 @@ local Toggles = {
 }
 
 -- ==========================================
--- 1. TAMPILAN GUI (Sesuai Screenshot Anda)
+-- 1. TAMPILAN GUI
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomKeysGUI"
-ScreenGui.Parent = uiContainer 
+ScreenGui.Parent = UI_PARENT 
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 220, 0, 260)
@@ -172,7 +185,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Targeted Teleport Asli + Perbaikan Pintu)
+-- 2. LOGIKA FITUR SCRIPT (Targeted Teleport + Error Catcher)
 -- ==========================================
 
 task.spawn(function()
@@ -180,125 +193,136 @@ task.spawn(function()
         if not Toggles.AutoFarm then continue end
         if not ScreenGui.Parent then break end 
         
-        local character = LocalPlayer.Character
-        if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
-        local rootPart = character.HumanoidRootPart
-        local humanoid = character:FindFirstChild("Humanoid")
-        
-        -- [PERBAIKAN 1]: Otomatis pasang (equip) alat/kunci yang ada di tas agar pintu bereaksi
-        if humanoid then
-            local backpack = LocalPlayer:FindFirstChild("Backpack")
-            if backpack then
-                for _, tool in pairs(backpack:GetChildren()) do
-                    if tool:IsA("Tool") then
-                        humanoid:EquipTool(tool)
+        -- Bungkus dengan pcall dan tangkap errornya
+        local loopSuccess, loopError = pcall(function()
+            local character = LocalPlayer.Character
+            if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+            local rootPart = character.HumanoidRootPart
+            local humanoid = character:FindFirstChild("Humanoid")
+            
+            -- [AUTO-EQUIP] Otomatis pegang alat agar pintu bereaksi
+            if humanoid then
+                local backpack = LocalPlayer:FindFirstChild("Backpack")
+                if backpack then
+                    for _, tool in pairs(backpack:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            humanoid:EquipTool(tool)
+                        end
                     end
                 end
             end
-        end
-        
-        local keys = {}
-        local doors = {}
-        local portals = {}
-        
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") then
-                
-                -- [PERBAIKAN 2]: Jangan memindai kunci yang sedang kita pegang di tangan
-                if obj:IsDescendantOf(character) then continue end
-                
-                -- [PERBAIKAN 3]: Menggunakan "or" untuk mencegah Silent Crash jika teks kosong
-                local aText = obj.ActionText and string.lower(obj.ActionText) or ""
-                local oText = obj.ObjectText and string.lower(obj.ObjectText) or ""
-                local pName = (obj.Parent and obj.Parent.Name) and string.lower(obj.Parent.Name) or ""
-                local oName = obj.Name and string.lower(obj.Name) or ""
-                
-                local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk")
-                local isKey = string.find(oText, "kunci") or string.find(oText, "key") or string.find(pName, "key") or string.find(oName, "key")
-                local isDoor = string.find(oText, "pintu") or string.find(oText, "door") or string.find(pName, "door") or string.find(pName, "lock") or string.find(oText, "gembok") or string.find(aText, "buka") or string.find(aText, "open")
-
-                if obj.Parent and obj.Parent:IsA("BasePart") then
-                    local dist = (rootPart.Position - obj.Parent.Position).Magnitude
-                    local itemData = {prompt = obj, part = obj.Parent, distance = dist}
+            
+            local keys = {}
+            local doors = {}
+            local portals = {}
+            
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
                     
-                    if isPortal then
-                        table.insert(portals, itemData)
-                    elseif isKey then
-                        table.insert(keys, itemData)
-                    elseif isDoor then
-                        table.insert(doors, itemData)
+                    -- Abaikan kunci/objek yang sudah menempel di badan kita
+                    if obj:IsDescendantOf(character) then continue end
+                    
+                    -- [ANTI-CRASH] Mengamankan pembacaan properti yang kosong/nil
+                    local aText = obj.ActionText and string.lower(obj.ActionText) or ""
+                    local oText = obj.ObjectText and string.lower(obj.ObjectText) or ""
+                    local pName = (obj.Parent and obj.Parent.Name) and string.lower(obj.Parent.Name) or ""
+                    local oName = obj.Name and string.lower(obj.Name) or ""
+                    
+                    local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk")
+                    local isKey = string.find(oText, "kunci") or string.find(oText, "key") or string.find(pName, "key") or string.find(oName, "key")
+                    local isDoor = string.find(oText, "pintu") or string.find(oText, "door") or string.find(pName, "door") or string.find(pName, "lock") or string.find(oText, "gembok") or string.find(aText, "buka") or string.find(aText, "open")
+
+                    if obj.Parent and obj.Parent:IsA("BasePart") then
+                        local dist = (rootPart.Position - obj.Parent.Position).Magnitude
+                        local itemData = {prompt = obj, part = obj.Parent, distance = dist}
+                        
+                        if isPortal then
+                            table.insert(portals, itemData)
+                        elseif isKey then
+                            table.insert(keys, itemData)
+                        elseif isDoor then
+                            table.insert(doors, itemData)
+                        end
                     end
                 end
             end
+            
+            local function sortClosest(a, b)
+                return a.distance < b.distance
+            end
+            table.sort(keys, sortClosest)
+            table.sort(doors, sortClosest)
+            table.sort(portals, sortClosest)
+            
+            local actionTaken = false
+
+            -- PRIORITAS 1: AMBIL KUNCI
+            if Toggles.PickupKeys and #keys > 0 then
+                local target = keys[1]
+                if target.distance < 400 then
+                    target.prompt.Enabled = true
+                    target.prompt.MaxActivationDistance = 50
+                    target.prompt.RequiresLineOfSight = false -- Abaikan tembok/sudut
+                    
+                    rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
+                    task.wait(0.1)
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                    end
+                    
+                    actionTaken = true
+                    task.wait(0.3)
+                end
+            end
+
+            -- PRIORITAS 2: BUKA PINTU
+            if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
+                local target = doors[1]
+                if target.distance < 400 then
+                    target.prompt.Enabled = true
+                    target.prompt.MaxActivationDistance = 50
+                    target.prompt.RequiresLineOfSight = false -- Memaksa pintu terbuka meski terhalang
+                    
+                    -- Teleport natural ke depan pintu
+                    rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(2, 2, 2), target.part.Position)
+                    task.wait(0.3) -- Jeda vital agar server mendeteksi kunci di tangan
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                        task.wait(0.1)
+                        fireproximityprompt(target.prompt, 1, true) -- Dobel klik
+                    end
+                    
+                    actionTaken = true
+                    task.wait(0.3)
+                end
+            end
+
+            -- PRIORITAS 3: MASUK/KELUAR PORTAL
+            if Toggles.JoinGame and not actionTaken then
+                if #portals > 0 and portals[1].distance < 400 then
+                    local target = portals[1]
+                    target.prompt.RequiresLineOfSight = false
+                    
+                    rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
+                    task.wait(0.1)
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                    end
+                    task.wait(5)
+                end
+            end
+            
+        end)
+        
+        -- [DEBUGGING] Jika ada error, kirim ke konsol F9
+        if not loopSuccess then
+            warn("[SCRIPT ERROR]: " .. tostring(loopError))
         end
         
-        local function sortClosest(a, b)
-            return a.distance < b.distance
-        end
-        table.sort(keys, sortClosest)
-        table.sort(doors, sortClosest)
-        table.sort(portals, sortClosest)
-        
-        local actionTaken = false
-
-        -- PRIORITAS 1: LANGSUNG KE KUNCI TERDEKAT
-        if Toggles.PickupKeys and #keys > 0 then
-            local target = keys[1]
-            if target.distance < 400 then
-                target.prompt.Enabled = true
-                target.prompt.MaxActivationDistance = 50
-                target.prompt.RequiresLineOfSight = false -- Bypass Anti-Cheat dinding
-                
-                rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
-                task.wait(0.1)
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
-                end
-                
-                actionTaken = true
-                task.wait(0.3)
-            end
-        end
-
-        -- PRIORITAS 2: LANGSUNG BUKA PINTU
-        if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
-            local target = doors[1]
-            if target.distance < 400 then
-                target.prompt.Enabled = true
-                target.prompt.MaxActivationDistance = 50
-                target.prompt.RequiresLineOfSight = false
-                
-                -- Teleport ke pintu
-                rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(2, 2, 2), target.part.Position)
-                
-                -- Memberikan jeda yang cukup agar pintu mengenali kunci di tangan karakter
-                task.wait(0.3)
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
-                end
-                
-                actionTaken = true
-                task.wait(0.3)
-            end
-        end
-
-        -- PRIORITAS 3: MASUK/KELUAR PORTAL
-        if Toggles.JoinGame and not actionTaken then
-            if #portals > 0 and portals[1].distance < 400 then
-                local target = portals[1]
-                target.prompt.RequiresLineOfSight = false
-                
-                rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
-                task.wait(0.1)
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
-                end
-                task.wait(5)
-            end
-        end
-
     end
 end)
+
+print("Custom GUI vFinal (Targeted Teleport + Debug Mode) loaded successfully!")
