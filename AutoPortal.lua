@@ -127,14 +127,13 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Speed Farm & Anti-Render Lag)
+-- 2. LOGIKA FITUR SCRIPT (Speed Farm & 11s Render Delay)
 -- ==========================================
 
--- Variabel untuk mencegah salah deteksi Lobi saat game sedang loading ruangan baru
+-- Variabel penahan eksekusi portal
 local lastItemFoundTime = tick() 
 
 task.spawn(function()
-    -- Loop dipercepat menjadi 0.05 detik
     while task.wait(0.05) do
         if not Toggles.AutoFarm then continue end
         
@@ -142,12 +141,11 @@ task.spawn(function()
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
-        -- Wadah Array untuk memisahkan target
         local keys = {}
         local doors = {}
         local portals = {}
         
-        -- Scanning seluruh workspace dengan cepat
+        -- Memindai seluruh workspace
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("ProximityPrompt") and obj.Enabled then
                 local pName = string.lower(obj.Parent.Name)
@@ -164,12 +162,11 @@ task.spawn(function()
         end
 
         -- ========================================
-        -- EKSEKUSI 1: AMBIL KUNCI (Prioritas Tertinggi)
+        -- EKSEKUSI 1: AMBIL KUNCI
         -- ========================================
         if Toggles.PickupKeys and #keys > 0 then
-            lastItemFoundTime = tick() -- Reset timer karena kita menemukan item arena
+            lastItemFoundTime = tick() -- Segarkan timer setiap kali menemukan item
             
-            -- Teleport langsung menyatu dengan posisi kunci agar seketika terdeteksi
             rootPart.CFrame = keys[1].Parent.CFrame
             task.wait(0.05) 
             
@@ -180,15 +177,15 @@ task.spawn(function()
                 task.wait(keys[1].HoldDuration)
                 keys[1]:InputHoldEnd()
             end
-            task.wait(0.05) -- Jeda ultra-singkat antar pengambilan
-            continue -- Ulangi loop dari awal untuk mendeteksi perubahan lingkungan
+            task.wait(0.05)
+            continue 
         end
 
         -- ========================================
         -- EKSEKUSI 2: BUKA PINTU
         -- ========================================
         if Toggles.UnlockDoors and #doors > 0 then
-            lastItemFoundTime = tick() -- Reset timer
+            lastItemFoundTime = tick() -- Segarkan timer
             
             rootPart.CFrame = doors[1].Parent.CFrame
             task.wait(0.05)
@@ -205,12 +202,11 @@ task.spawn(function()
         end
 
         -- ========================================
-        -- EKSEKUSI 3: JOIN PORTAL (Dengan Validasi Waktu)
+        -- EKSEKUSI 3: JOIN PORTAL 
         -- ========================================
-        -- Hanya masuk portal JIKA tidak ada kunci/pintu DAN sudah berlalu 3 detik sejak item terakhir ditemukan
-        -- (Angka 3 detik mencegah script mengeksekusi portal saat game sedang nge-lag render ruang sebelah)
         if Toggles.JoinGame and #keys == 0 and #doors == 0 and #portals > 0 then
-            if tick() - lastItemFoundTime > 3 then
+            -- Menerapkan delay 11 detik sesuai observasi
+            if tick() - lastItemFoundTime > 11 then
                 rootPart.CFrame = portals[1].CFrame
                 task.wait(0.1)
                 
@@ -220,12 +216,18 @@ task.spawn(function()
                     firetouchinterest(rootPart, portals[1], 1)
                 end
                 
-                print("[LOG] Eksekusi Join Portal!")
-                task.wait(10) -- Jeda panjang agar aman mendarat di arena
+                print("[LOG] Eksekusi Portal setelah 11 detik tidak ada aktivitas.")
+                
+                -- Memberikan waktu loading screen yang lebih panjang setelah masuk portal
+                task.wait(15) 
+                
+                -- Segarkan ulang timer setelah keluar dari loading screen
+                -- agar tidak langsung terpental ke portal berikutnya
+                lastItemFoundTime = tick() 
             end
         end
         
     end
 end)
 
-print("Custom GUI v4.0 (Speed Farm Optimization) loaded successfully!")
+print("Custom GUI v4.1 (11s Delay Applied) loaded successfully!")
