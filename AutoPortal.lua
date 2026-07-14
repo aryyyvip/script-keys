@@ -111,26 +111,44 @@ Footer.Font = Enum.Font.SourceSans
 Footer.Parent = MainFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Revisi 2)
+-- 2. LOGIKA FITUR SCRIPT (Revisi 3 - Join/Exit)
 -- ==========================================
 
--- Sistem Auto Join Portal
+local TeleportService = game:GetService("TeleportService")
+
+-- Sistem Auto Join/Masuk Game
 task.spawn(function()
-    while task.wait(2) do
-        if Toggles.AutoFarm and Toggles.JoinGame then
+    while task.wait(1) do
+        -- Jika centang Join Game aktif
+        if Toggles.JoinGame and Toggles.AutoFarm then
             local character = LocalPlayer.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
-                        local portalPart = obj.Parent
-                        if portalPart and portalPart:IsA("BasePart") then
-                            character.HumanoidRootPart.CFrame = portalPart.CFrame
-                            print("[LOG] Menyentuh portal: " .. portalPart.Name)
+                
+                -- Mencari tombol masuk pada portal/pintu di Lobby
+                for _, prompt in pairs(workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        local actionText = string.lower(prompt.ActionText)
+                        local objectText = string.lower(prompt.ObjectText)
+                        local parentName = string.lower(prompt.Parent.Name)
+                        
+                        -- Jika tulisan tombolnya "Enter", "Join", "Play", atau nama objeknya "Portal"
+                        if string.find(actionText, "enter") or string.find(actionText, "join") or string.find(actionText, "play") or string.find(parentName, "portal") then
                             
-                            -- Jeda 12 detik agar karakter sempat dimuat di map baru
-                            -- break digunakan agar tidak langsung menyentuh portal lobby berulang kali
-                            task.wait(12) 
-                            break 
+                            -- Teleportasi ke portal masuk
+                            character.HumanoidRootPart.CFrame = prompt.Parent.CFrame
+                            task.wait(0.3)
+                            
+                            -- Eksekusi tombol masuk
+                            if fireproximityprompt then
+                                fireproximityprompt(prompt, 1, true)
+                                print("[LOG] Berhasil menekan tombol masuk ruangan!")
+                            end
+                            
+                            -- Matikan centang sementara agar tidak ditekan berulang kali
+                            Toggles.JoinGame = false 
+                            task.wait(10) -- Jeda panjang saat loading antar ruangan
+                            Toggles.JoinGame = true -- Nyalakan kembali untuk ronde berikutnya
+                            break
                         end
                     end
                 end
@@ -139,45 +157,45 @@ task.spawn(function()
     end
 end)
 
--- Sistem Unlock Doors & Pickup Keys (Digabung agar lebih efisien)
+-- Sistem Unlock Doors & Pickup Keys
 task.spawn(function()
-    while task.wait(1) do
-        -- Hanya jalan jika AutoFarm aktif dan (Unlock Doors atau Pickup Keys) aktif
+    while task.wait(0.5) do
         if Toggles.AutoFarm and (Toggles.UnlockDoors or Toggles.PickupKeys) then
             local character = LocalPlayer.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
                 
-                -- Mencari semua ProximityPrompt (Tombol Interaksi E) di map
+                local foundItem = false
+                
                 for _, prompt in pairs(workspace:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
                         local parentObj = prompt.Parent
-                        
-                        -- Membaca nama komponen dan teks UI dari tombol interaksi (dijadikan huruf kecil semua)
                         local parentName = string.lower(parentObj.Name)
-                        local actionText = string.lower(prompt.ActionText) -- Cth: "Open", "Pick Up"
-                        local objectText = string.lower(prompt.ObjectText) -- Cth: "Door", "Key"
+                        local actionText = string.lower(prompt.ActionText)
+                        local objectText = string.lower(prompt.ObjectText)
                         
-                        -- LOGIKA MENGAMBIL KUNCI
+                        -- AMBIL KUNCI
                         if Toggles.PickupKeys then
                             if string.find(parentName, "key") or string.find(actionText, "pick") or string.find(actionText, "grab") or string.find(objectText, "key") then
                                 character.HumanoidRootPart.CFrame = parentObj.CFrame
-                                task.wait(0.3) -- Jeda agar teleport sempurna
+                                task.wait(0.2)
                                 if fireproximityprompt then
                                     fireproximityprompt(prompt, 1, true)
-                                    print("[LOG] Kunci berhasil diambil!")
+                                    print("[LOG] Kunci diambil!")
+                                    foundItem = true
                                 end
                                 task.wait(0.5)
                             end
                         end
                         
-                        -- LOGIKA MEMBUKA PINTU/GEMBOK
+                        -- BUKA PINTU
                         if Toggles.UnlockDoors then
                             if string.find(parentName, "door") or string.find(parentName, "lock") or string.find(actionText, "open") or string.find(actionText, "unlock") or string.find(objectText, "door") then
                                 character.HumanoidRootPart.CFrame = parentObj.CFrame
-                                task.wait(0.3)
+                                task.wait(0.2)
                                 if fireproximityprompt then
                                     fireproximityprompt(prompt, 1, true)
-                                    print("[LOG] Pintu/Gembok berhasil dibuka!")
+                                    print("[LOG] Pintu dibuka!")
+                                    foundItem = true
                                 end
                                 task.wait(0.5)
                             end
@@ -186,9 +204,33 @@ task.spawn(function()
                     end
                 end
                 
+                -- Sistem Exit/Rejoin (Jika di dalam ruangan dan tidak ada lagi yang bisa diambil)
+                -- Hanya dijalankan jika AutoFarm menyala dan semua tugas selesai
+                if Toggles.AutoFarm and not foundItem then
+                    -- Kita perlu memverifikasi apakah kita sedang di ruangan game atau di lobby.
+                    -- Game biasanya memiliki tempat Exit khusus setelah menang.
+                    for _, prompt in pairs(workspace:GetDescendants()) do
+                        if prompt:IsA("ProximityPrompt") then
+                            local actionText = string.lower(prompt.ActionText)
+                            
+                            -- Mencari tombol "Exit", "Leave", "Return"
+                            if string.find(actionText, "exit") or string.find(actionText, "leave") or string.find(actionText, "return") then
+                                character.HumanoidRootPart.CFrame = prompt.Parent.CFrame
+                                task.wait(0.2)
+                                if fireproximityprompt then
+                                    fireproximityprompt(prompt, 1, true)
+                                    print("[LOG] Keluar ruangan dan kembali ke lobby.")
+                                end
+                                task.wait(5)
+                                break
+                            end
+                        end
+                    end
+                end
+                
             end
         end
     end
 end)
 
-print("Custom GUI v2 loaded successfully!")
+print("Custom GUI v3 loaded successfully!")
