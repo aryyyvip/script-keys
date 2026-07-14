@@ -4,6 +4,7 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
+local ProximityPromptService = game:GetService("ProximityPromptService") -- Service penting untuk interaksi
 
 -- Membuat wadah variabel untuk tombol On/Off
 local Toggles = {
@@ -13,7 +14,7 @@ local Toggles = {
     JoinGame = false
 }
 
--- 1. MEMBUAT TAMPILAN GUI (Sesuai Gambar)
+-- 1. MEMBUAT TAMPILAN GUI (Sesuai Gambar Terbaru)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomKeysGUI"
 -- Memasukkan GUI ke CoreGui agar tidak mudah terdeteksi anti-cheat
@@ -37,11 +38,11 @@ TopLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- Hijau terang
 TopLine.BorderSizePixel = 0
 TopLine.Parent = MainFrame
 
--- Membuat Judul "Keys | EsohaSL -"
+-- Membuat Judul "Keys | punyanaa -" (Diperbarui dari gambar input)
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 35)
 Title.BackgroundTransparency = 1
-Title.Text = "Keys | punyanaa -"
+Title.Text = "Keys | punyanaa -" -- Teks diperbarui verbatim
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 18
 Title.Font = Enum.Font.Code
@@ -76,14 +77,14 @@ local function CreateToggle(name, yPos, varName)
     Button.Position = UDim2.new(0.85, 0, 0, yPos + 5)
     Button.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
     Button.BorderColor3 = Color3.fromRGB(40, 40, 40)
-    Button.Text = ""
+    Button.Text = "" -- Memulai tanpa centang
     Button.TextColor3 = Color3.fromRGB(255, 255, 255)
     Button.TextSize = 14
     Button.Parent = MainFrame
 
     -- Logika jika tombol ditekan
     Button.MouseButton1Click:Connect(function()
-        Toggles[varName] = not Toggles[varName] -- Membalik status (On jadi Off, Off jadi On)
+        Toggles[varName] = not Toggles[varName] -- Membalik status
         if Toggles[varName] then
             Button.Text = "✓" -- Memunculkan centang
         else
@@ -98,118 +99,102 @@ CreateToggle("Unlock Doors", 110, "UnlockDoors")
 CreateToggle("Pickup Keys", 145, "PickupKeys")
 CreateToggle("Join Game", 180, "JoinGame")
 
--- Membuat kotak tulisan YouTube di paling bawah
-local Footer = Instance.new("TextLabel")
-Footer.Size = UDim2.new(0.9, 0, 0, 30)
-Footer.Position = UDim2.new(0.05, 0, 1, -35)
-Footer.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-Footer.BorderColor3 = Color3.fromRGB(30, 30, 30)
-Footer.Text = "punya naaa"
-Footer.TextColor3 = Color3.fromRGB(200, 200, 200)
-Footer.TextSize = 15
-Footer.Font = Enum.Font.SourceSans
-Footer.Parent = MainFrame
+-- Membuat kotak tulisan YouTube/Kredit di paling bawah
+local FooterFrame = Instance.new("Frame")
+FooterFrame.Size = UDim2.new(0.9, 0, 0, 50)
+FooterFrame.Position = UDim2.new(0.05, 0, 1, -55)
+FooterFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+FooterFrame.BorderColor3 = Color3.fromRGB(30, 30, 30)
+FooterFrame.Parent = MainFrame
+
+local FooterTitle = Instance.new("TextLabel")
+FooterTitle.Size = UDim2.new(1, 0, 0, 30)
+FooterTitle.BackgroundTransparency = 1
+FooterTitle.Text = "punya naaa" -- Teks diperbarui verbatim
+FooterTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+FooterTitle.TextSize = 15
+FooterTitle.Font = Enum.Font.SourceSans
+FooterTitle.Parent = FooterFrame
+
+local FooterSubtext = Instance.new("TextLabel")
+FooterSubtext.Size = UDim2.new(1, 0, 0, 20)
+FooterSubtext.Position = UDim2.new(0, 0, 0, 30)
+FooterSubtext.BackgroundTransparency = 1
+FooterSubtext.Text = "-" -- Teks diperbarui verbatim
+FooterSubtext.TextColor3 = Color3.fromRGB(150, 150, 150)
+FooterSubtext.TextSize = 12
+FooterSubtext.Font = Enum.Font.SourceSans
+FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Revisi Berdasarkan Gameplay Keys)
+-- 2. LOGIKA FITUR SCRIPT (Bekerja di Latar Belakang)
 -- ==========================================
 
--- Menjalankan satu sistem utama agar eksekusi tidak saling bertabrakan
+-- Sistem Fungsional Baru untuk Unlock Doors & Pickup Keys
 task.spawn(function()
-    while task.wait(0.5) do
-        -- Hanya berjalan jika tombol AutoFarm diaktifkan di GUI
-        if not Toggles.AutoFarm then continue end
-        
-        local character = LocalPlayer.Character
-        local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then continue end
+    while task.wait(0.5) do -- Loop cepat tapi efisien
+        if Toggles.AutoFarm then
+            local character = LocalPlayer.Character
+            if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
+            
+            local currentPos = character.HumanoidRootPart.Position
 
-        -- Membuat wadah penyimpanan objek sementara
-        local keys = {}
-        local doors = {}
-        local joinPortals = {}
-        local exitPortals = {}
-
-        -- Mengumpulkan semua ProximityPrompt di seluruh map
-        for _, prompt in pairs(workspace:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                local pName = string.lower(prompt.Parent.Name)
-                local aText = string.lower(prompt.ActionText)
-                local oText = string.lower(prompt.ObjectText)
-
-                -- Deteksi Kunci
-                if string.find(pName, "key") or string.find(oText, "key") then
-                    table.insert(keys, prompt)
-                -- Deteksi Pintu / Laci (Drawer)
-                elseif string.find(pName, "door") or string.find(oText, "door") or string.find(pName, "drawer") or string.find(oText, "drawer") or string.find(pName, "lock") then
-                    table.insert(doors, prompt)
-                -- Deteksi Portal Masuk Lobby
-                elseif string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") then
-                    table.insert(joinPortals, prompt)
-                -- Deteksi Portal Keluar (Menang)
-                elseif string.find(aText, "exit") or string.find(aText, "escape") or string.find(oText, "exit") then
-                    table.insert(exitPortals, prompt)
+            -- Cari semua objek yang bisa diinteraksi di seluruh game
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") and obj.Enabled then
+                    local parent = obj.Parent
+                    local isFarming = false
+                    
+                    -- Logika Pickup Keys: Cari objek dengan nama 'Key'
+                    if Toggles.PickupKeys and (string.find(obj.Name:lower(), "key") or string.find(parent.Name:lower(), "key")) then
+                        isFarming = true
+                        print("Farming Key: " .. parent.Name)
+                    end
+                    
+                    -- Logika Unlock Doors: Cari objek dengan nama 'Door' atau 'Lock'
+                    if not isFarming and Toggles.UnlockDoors and (string.find(obj.Name:lower(), "door") or string.find(parent.Name:lower(), "door") or string.find(obj.Name:lower(), "lock") or string.find(parent.Name:lower(), "lock")) then
+                        isFarming = true
+                        print("Farming Door: " .. parent.Name)
+                    end
+                    
+                    if isFarming then
+                        -- Teleport ke objek untuk berinteraksi
+                        character.HumanoidRootPart.CFrame = parent.CFrame * CFrame.new(0, 0, 2) -- Menempatkan pemain sedikit di depan
+                        task.wait(0.1) -- Jeda teleport
+                        
+                        -- Picu interaksi prompt (ini akan menekan tombol interaksi, misal 'E')
+                        obj:InputHoldBegin()
+                        task.wait(obj.HoldDuration) -- Menunggu durasi tahan prompt
+                        obj:InputHoldEnd()
+                        task.wait(0.2) -- Jeda antar interaksi
+                    end
                 end
             end
         end
-
-        -- ========================================
-        -- PRIORITAS 1: MENGAMBIL KUNCI
-        -- ========================================
-        if Toggles.PickupKeys and #keys > 0 then
-            for _, prompt in pairs(keys) do
-                -- Teleport ke kunci
-                rootPart.CFrame = prompt.Parent.CFrame
-                task.wait(0.2)
-                -- Tekan tombol secara otomatis
-                if fireproximityprompt then
-                    fireproximityprompt(prompt, 1, true)
-                end
-                task.wait(0.3) -- Jeda antar item agar tidak error
-            end
-            continue -- Mengulang loop untuk mengecek apakah masih ada kunci lain
-        end
-
-        -- ========================================
-        -- PRIORITAS 2: MEMBUKA PINTU & LACI
-        -- ========================================
-        if Toggles.UnlockDoors and #doors > 0 then
-            for _, prompt in pairs(doors) do
-                rootPart.CFrame = prompt.Parent.CFrame
-                task.wait(0.2)
-                if fireproximityprompt then
-                    fireproximityprompt(prompt, 1, true)
-                end
-                task.wait(0.3)
-            end
-            continue -- Mengulang loop
-        end
-
-        -- ========================================
-        -- PRIORITAS 3: AUTO JOIN & EXIT GAME
-        -- ========================================
-        if Toggles.JoinGame then
-            -- Kondisi A: Kita di dalam map dan sudah menang (Portal Exit Muncul)
-            if #exitPortals > 0 then
-                rootPart.CFrame = exitPortals[1].Parent.CFrame
-                task.wait(0.2)
-                if fireproximityprompt then
-                    fireproximityprompt(exitPortals[1], 1, true)
-                end
-                task.wait(8) -- Jeda 8 detik saat loading balik ke lobby
-                
-            -- Kondisi B: Kita berada di Lobby (Tidak ada kunci/pintu map, adanya Join Portal)
-            elseif #keys == 0 and #doors == 0 and #joinPortals > 0 then
-                rootPart.CFrame = joinPortals[1].Parent.CFrame
-                task.wait(0.2)
-                if fireproximityprompt then
-                    fireproximityprompt(joinPortals[1], 1, true)
-                end
-                task.wait(8) -- Jeda 8 detik saat loading masuk ke arena
-            end
-        end
-        
     end
 end)
 
-print("Custom GUI v4 (Gameplay Synced) loaded successfully!")
+-- Sistem Auto Join Portal (Sama seperti sebelumnya, memastikan Anda tidak terjebak di lobi)
+task.spawn(function()
+    while task.wait(3) do
+        if Toggles.AutoFarm and Toggles.JoinGame then
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                
+                -- Mencari portal sentuh di Lobby
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
+                        local portalPart = obj.Parent
+                        if portalPart and portalPart:IsA("BasePart") then
+                            -- Teleportasi ke portal
+                            character.HumanoidRootPart.CFrame = portalPart.CFrame
+                            task.wait(6) -- Jeda setelah pindah server/room
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+print("Custom GUI v2.0 (Fungsional) loaded successfully!")
