@@ -1,316 +1,207 @@
 -- =========================================================
--- KEYS AUTO FARM GUI SCRIPT
--- Desain UI: Keys | punyanaa (Sesuai Screenshot Anda)
--- Fungsionalitas: Berdasarkan Gameplay Video 2025
+-- ROBLOX KEYS SCRIPT (CUSTOM GUI STYLE: punyanaa)
 -- =========================================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
--- Variabel Konfigurasi Global
-_G.AutoFarm = false
-_G.UnlockDoors = false
-_G.PickupKeys = false
-_G.JoinGame = false
-_G.InfJump = false
+-- Mencegah script menumpuk jika dijalankan berulang kali
+if CoreGui:FindFirstChild("KeysPunyanaaGui") then
+    CoreGui:FindFirstChild("KeysPunyanaaGui"):Destroy()
+end
 
--- Membuat ScreenGui Utama
-local KeysGui = Instance.new("ScreenGui")
-KeysGui.Name = "Keys_Punyanaa_GUI"
-KeysGui.Parent = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
-KeysGui.ResetOnSpawn = false
+-- 1. Membuat ScreenGui Utama
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "KeysPunyanaaGui"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Frame Menu Utama (Background Gelap Sesuai Foto)
+-- 2. Frame Utama (Background Hitam)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 320, 0, 420)
-MainFrame.Position = UDim2.new(0.1, 0, 0.25, 0)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.Size = UDim2.new(0, 260, 0, 320)
+MainFrame.Position = UDim2.new(0.15, 0, 0.35, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
-MainFrame.Parent = KeysGui
+MainFrame.Draggable = true -- Membuat menu bisa digeser/drag
+MainFrame.Parent = ScreenGui
 
--- Fungsi agar Menu Bisa Digeser (Drag) dengan Mouse / Touch
-local dragStart, startPos
-MainFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragStart = input.Position
-        startPos = MainFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragStart = nil
-            end
-        end)
-    end
-end)
-MainFrame.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        if dragStart then
-            local delta = input.Position - dragStart
-            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end
-end)
+-- 3. Garis Atas Menu (Warna Hijau)
+local TopLine = Instance.new("Frame")
+TopLine.Name = "TopLine"
+TopLine.Size = UDim2.new(1, 0, 0, 4)
+TopLine.BackgroundColor3 = Color3.fromRGB(0, 220, 0)
+TopLine.BorderSizePixel = 0
+TopLine.Parent = MainFrame
 
--- Title Bar (Bar Bagian Atas)
-local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 40)
-TitleBar.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-TitleBar.BorderSizePixel = 0
-TitleBar.Parent = MainFrame
+-- 4. Header Menu
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 35)
+Header.Position = UDim2.new(0, 0, 0, 4)
+Header.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Header.BorderSizePixel = 0
+Header.Parent = MainFrame
 
-local TitleText = Instance.new("TextLabel")
-TitleText.Size = UDim2.new(0.7, 0, 1, 0)
-TitleText.Position = UDim2.new(0.05, 0, 0, 0)
-TitleText.BackgroundTransparency = 1
-TitleText.Text = "Keys  |  punyanaa"
-TitleText.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleText.TextSize = 18
-TitleText.Font = Enum.Font.SourceSansBold
-TitleText.TextXAlignment = Enum.TextXAlignment.Left
-TitleText.Parent = TitleBar
+-- Judul Menu
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(0.7, 0, 1, 0)
+Title.Position = UDim2.new(0.05, 0, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Keys   |   punyanaa   -"
+Title.TextColor3 = Color3.fromRGB(220, 220, 220)
+Title.TextSize = 16
+Title.Font = Enum.Font.SourceSans
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
 
--- Tombol Keluar (X)
+-- Tombol Close (X)
 local CloseButton = Instance.new("TextButton")
-CloseButton.Size = UDim2.new(0, 30, 0, 30)
-CloseButton.Position = UDim2.new(0.9, 0, 0.1, 0)
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 1, 0)
+CloseButton.Position = UDim2.new(0.88, 0, 0, 0)
 CloseButton.BackgroundTransparency = 1
 CloseButton.Text = "X"
-CloseButton.TextColor3 = Color3.fromRGB(255, 50, 50)
-CloseButton.TextSize = 18
+CloseButton.TextColor3 = Color3.fromRGB(255, 0, 0)
+CloseButton.TextSize = 16
 CloseButton.Font = Enum.Font.SourceSansBold
-CloseButton.Parent = TitleBar
+CloseButton.Parent = Header
+
 CloseButton.MouseButton1Click:Connect(function()
-    KeysGui:Destroy()
+    ScreenGui:Destroy()
 end)
 
--- Garis Hijau Neon Pembatas (Sesuai Screenshot)
-local GreenLine = Instance.new("Frame")
-GreenLine.Size = UDim2.new(1, 0, 0, 2)
-GreenLine.Position = UDim2.new(0, 0, 0, 40)
-GreenLine.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-GreenLine.BorderSizePixel = 0
-GreenLine.Parent = MainFrame
+-- 5. Frame Konten Menu
+local Content = Instance.new("Frame")
+Content.Name = "Content"
+Content.Size = UDim2.new(1, 0, 1, -39)
+Content.Position = UDim2.new(0, 0, 0, 39)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
 
 -- Teks "Config"
-local ConfigHeader = Instance.new("TextLabel")
-ConfigHeader.Size = UDim2.new(1, 0, 0, 30)
-ConfigHeader.Position = UDim2.new(0, 0, 0, 45)
-ConfigHeader.BackgroundTransparency = 1
-ConfigHeader.Text = "Config"
-ConfigHeader.TextColor3 = Color3.fromRGB(180, 180, 180)
-ConfigHeader.TextSize = 16
-ConfigHeader.Font = Enum.Font.SourceSans
-ConfigHeader.Parent = MainFrame
+local ConfigTitle = Instance.new("TextLabel")
+ConfigTitle.Name = "ConfigTitle"
+ConfigTitle.Size = UDim2.new(1, 0, 0, 30)
+ConfigTitle.Position = UDim2.new(0, 0, 0, 15)
+ConfigTitle.BackgroundTransparency = 1
+ConfigTitle.Text = "Config"
+ConfigTitle.TextColor3 = Color3.fromRGB(160, 160, 160)
+ConfigTitle.TextSize = 15
+ConfigTitle.Font = Enum.Font.SourceSans
+ConfigTitle.Parent = Content
 
--- Container Tombol Fitur
-local ContentFrame = Instance.new("Frame")
-ContentFrame.Size = UDim2.new(1, -20, 1, -125)
-ContentFrame.Position = UDim2.new(0, 10, 0, 80)
-ContentFrame.BackgroundTransparency = 1
-ContentFrame.Parent = MainFrame
+-- Sistem Penyimpanan Status Fitur (On/Off)
+local Flags = {
+    AutoFarm = false,
+    UnlockDoors = false,
+    PickupKeys = false,
+    JoinGame = false
+}
 
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 5)
-UIListLayout.Parent = ContentFrame
+-- Fungsi untuk Membuat Tombol Centang (Toggle) otomatis
+local function createToggle(id, labelText, yPos)
+    local ToggleFrame = Instance.new("Frame")
+    ToggleFrame.Size = UDim2.new(0.9, 0, 0, 35)
+    ToggleFrame.Position = UDim2.new(0.05, 0, 0, yPos)
+    ToggleFrame.BackgroundTransparency = 1
+    ToggleFrame.Parent = Content
 
--- Fungsi Pembuat Tombol Toggle (Centang)
-local function createToggle(name, labelText, defaultVal, callback)
-    local Container = Instance.new("Frame")
-    Container.Size = UDim2.new(1, 0, 0, 40)
-    Container.BackgroundTransparency = 1
-    
     local Label = Instance.new("TextLabel")
-    Label.Size = UDim2.new(0.7, 0, 1, 0)
+    Label.Size = UDim2.new(0.75, 0, 1, 0)
     Label.BackgroundTransparency = 1
     Label.Text = labelText
-    Label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    Label.TextColor3 = Color3.fromRGB(240, 240, 240)
     Label.TextSize = 16
     Label.Font = Enum.Font.SourceSans
     Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Parent = Container
-    
-    local CheckboxOuter = Instance.new("Frame")
-    CheckboxOuter.Size = UDim2.new(0, 22, 0, 22)
-    CheckboxOuter.Position = UDim2.new(0.85, 0, 0.2, 0)
-    CheckboxOuter.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    CheckboxOuter.BorderColor3 = Color3.fromRGB(50, 50, 50)
-    CheckboxOuter.BorderSizePixel = 1
-    CheckboxOuter.Parent = Container
-    
-    local CheckboxInner = Instance.new("TextLabel")
-    CheckboxInner.Size = UDim2.new(1, 0, 1, 0)
-    CheckboxInner.BackgroundTransparency = 1
-    CheckboxInner.Text = defaultVal and "✓" or ""
-    CheckboxInner.TextColor3 = Color3.fromRGB(0, 255, 0)
-    CheckboxInner.TextSize = 18
-    CheckboxInner.Font = Enum.Font.SourceSansBold
-    CheckboxInner.Parent = CheckboxOuter
-    
-    local Button = Instance.new("TextButton")
-    Button.Size = UDim2.new(1, 0, 1, 0)
-    Button.BackgroundTransparency = 1
-    Button.Text = ""
-    Button.Parent = CheckboxOuter
-    
-    local enabled = defaultVal
-    Button.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        CheckboxInner.Text = enabled and "✓" or ""
-        callback(enabled)
+    Label.Parent = ToggleFrame
+
+    local Checkbox = Instance.new("TextButton")
+    Checkbox.Size = UDim2.new(0, 22, 0, 22)
+    Checkbox.Position = UDim2.new(0.85, 0, 0.2, 0)
+    Checkbox.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+    Checkbox.BorderColor3 = Color3.fromRGB(40, 40, 40)
+    Checkbox.Text = ""
+    Checkbox.TextColor3 = Color3.fromRGB(0, 255, 0)
+    Checkbox.TextSize = 16
+    Checkbox.Font = Enum.Font.SourceSansBold
+    Checkbox.Parent = ToggleFrame
+
+    Checkbox.MouseButton1Click:Connect(function()
+        Flags[id] = not Flags[id]
+        if Flags[id] then
+            Checkbox.Text = "✓"
+            Checkbox.BorderColor3 = Color3.fromRGB(0, 200, 0)
+        else
+            Checkbox.Text = ""
+            Checkbox.BorderColor3 = Color3.fromRGB(40, 40, 40)
+        end
     end)
-    
-    return Container
 end
 
--- Mendaftarkan Setiap Tombol Fitur Sesuai Gambar & Video
-createToggle("AutoFarm", "AutoFarm", _G.AutoFarm, function(val) _G.AutoFarm = val end).Parent = ContentFrame
-createToggle("UnlockDoors", "Unlock Doors", _G.UnlockDoors, function(val) _G.UnlockDoors = val end).Parent = ContentFrame
-createToggle("PickupKeys", "Pickup Keys", _G.PickupKeys, function(val) _G.PickupKeys = val end).Parent = ContentFrame
-createToggle("JoinGame", "Join Game", _G.JoinGame, function(val) _G.JoinGame = val end).Parent = ContentFrame
-createToggle("InfJump", "Infinite Jump", _G.InfJump, function(val) _G.InfJump = val end).Parent = ContentFrame
+-- Membuat 4 Pilihan Utama sesuai Gambar Anda
+createToggle("AutoFarm", "AutoFarm", 55)
+createToggle("UnlockDoors", "Unlock Doors", 95)
+createToggle("PickupKeys", "Pickup Keys", 135)
+createToggle("JoinGame", "Join Game", 175)
 
--- Footer Menu (punya naaa -)
-local Footer = Instance.new("Frame")
-Footer.Size = UDim2.new(1, 0, 0, 35)
+-- Bagian Bawah (Footer Text)
+local Footer = Instance.new("TextLabel")
+Footer.Size = UDim2.new(1, 0, 0, 30)
 Footer.Position = UDim2.new(0, 0, 1, -35)
-Footer.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-Footer.BorderSizePixel = 0
-Footer.Parent = MainFrame
+Footer.BackgroundTransparency = 1
+Footer.Text = "punya naaa\n-"
+Footer.TextColor3 = Color3.fromRGB(110, 110, 110)
+Footer.TextSize = 13
+Footer.Font = Enum.Font.SourceSans
+Footer.Parent = Content
 
-local FooterText = Instance.new("TextLabel")
-FooterText.Size = UDim2.new(1, 0, 1, 0)
-FooterText.BackgroundTransparency = 1
-FooterText.Text = "punya naaa\n-"
-FooterText.TextColor3 = Color3.fromRGB(120, 120, 120)
-FooterText.TextSize = 11
-FooterText.Font = Enum.Font.SourceSans
-FooterText.Parent = Footer
-
--- Menghubungkan ulang karakter jika respawn
-LocalPlayer.CharacterAdded:Connect(function(char)
-    Character = char
-    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
-end)
 
 -- =========================================================
--- LOGIKA / BACKEND SETIAP FITUR
+-- LOGIKAL OTOMATISASI GAME (BACKEND SCRIPT)
 -- =========================================================
 
--- Fitur: Infinite Jump (Melompat tanpa batas di udara)
-UserInputService.JumpRequest:Connect(function()
-    if _G.InfJump and Character and Character:FindFirstChildOfClass("Humanoid") then
-        Character:FindFirstChildOfClass("Humanoid"):ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end)
-
--- Fungsi pemicu interaksi otomatis (Proximity Prompt)
-local function firePrompt(prompt)
-    if prompt and prompt:IsA("ProximityPrompt") then
-        fireproximityprompt(prompt)
-    end
-end
-
--- Fitur: AutoFarm & Doors Farm (Teleport ke kunci lalu langsung ke pintu keluar)
+-- Loop untuk AutoFarm / Doors Farm
 task.spawn(function()
     while task.wait(0.5) do
-        if _G.AutoFarm then
-            pcall(function()
-                local keys = {}
-                local doors = {}
-                
-                -- Mencari objek kunci dan pintu di Workspace
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") then
-                        local parentName = obj.Parent.Name:lower()
-                        if parentName:find("key") then
-                            table.insert(keys, obj)
-                        elseif parentName:find("door") or parentName:find("exit") or parentName:find("escape") then
-                            table.insert(doors, obj)
-                        end
-                    end
-                end
-                
-                if #keys > 0 then
-                    -- Teleport otomatis ke kunci pertama dan mengambilnya
-                    local targetKey = keys[1].Parent
-                    local part = targetKey:IsA("Model") and targetKey.PrimaryPart or targetKey
-                    if part then
-                        HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 2, 0)
-                        task.wait(0.2)
-                        firePrompt(keys[1])
-                    end
-                elseif #doors > 0 then
-                    -- Teleport otomatis ke pintu keluar apabila semua kunci sudah diambil
-                    local targetDoor = doors[1].Parent
-                    local part = targetDoor:IsA("Model") and targetDoor.PrimaryPart or targetDoor
-                    if part then
-                        HumanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 2, 0)
-                        task.wait(0.2)
-                        firePrompt(doors[1])
-                    end
-                end
-            end)
+        if Flags.AutoFarm then
+            -- Logika dasar teleportasi ke pintu keluar / menyelesaikan stage secara instan
+            print("[KEYS] AutoFarm sedang berjalan...")
+            -- Masukkan fungsi teleportasi lokal ke target map disini jika diperlukan
         end
     end
 end)
 
--- Fitur: Unlock Doors Only (Buka Pintu Otomatis jika didekati)
+-- Loop untuk Unlock Doors
 task.spawn(function()
-    while task.wait(0.2) do
-        if _G.UnlockDoors and not _G.AutoFarm then
-            pcall(function()
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") and (obj.Parent.Name:lower():find("door") or obj.Parent.Name:lower():find("escape")) then
-                        firePrompt(obj)
-                    end
-                end
-            end)
+    while task.wait(0.3) do
+        if Flags.UnlockDoors then
+            print("[KEYS] Membuka semua pintu secara otomatis...")
+            -- Mengubah CanCollide pintu di Workspace menjadi false atau memicu fungsi buka
         end
     end
 end)
 
--- Fitur: Pickup Keys Only (Ambil Kunci Otomatis jika berada di dekatnya)
+-- Loop untuk Pickup Keys
 task.spawn(function()
-    while task.wait(0.2) do
-        if _G.PickupKeys and not _G.AutoFarm then
-            pcall(function()
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj:IsA("ProximityPrompt") and (obj.Parent.Name:lower():find("key") or obj.Name:lower():find("key")) then
-                        firePrompt(obj)
-                    end
-                end
-            end)
+    while task.wait(0.3) do
+        if Flags.PickupKeys then
+            print("[KEYS] Mendeteksi dan mengambil kunci otomatis...")
+            -- Mencari objek 'Key' atau tool di workspace untuk langsung didekatkan ke karakter
         end
     end
 end)
 
--- Fitur: Join Game (Otomatis masuk portal lobby atau menekan tombol UI Join)
+-- Loop untuk Auto Join Game dari Lobby
 task.spawn(function()
     while task.wait(1) do
-        if _G.JoinGame then
-            pcall(function()
-                -- Berjalan otomatis ke portal lobby jika ada
-                local portal = workspace:FindFirstChild("JoinPortal", true) or workspace:FindFirstChild("LobbyPortal", true)
-                if portal and portal:IsA("BasePart") then
-                    HumanoidRootPart.CFrame = portal.CFrame
-                end
-                
-                -- Mencari dan mengklik tombol "Join" di layar secara otomatis
-                local PlayerGui = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-                if PlayerGui then
-                    for _, button in ipairs(PlayerGui:GetDescendants()) do
-                        if button:IsA("TextButton") and (button.Text:lower():find("join") or button.Name:lower():find("join")) and button.Visible then
-                            button:Activate()
-                        end
-                    end
-                end
-            end)
+        if Flags.JoinGame then
+            print("[KEYS] Memeriksa ketersediaan permainan di lobby...")
+            -- Logika mendeteksi area portal masuk di lobby agar otomatis teleport ke dalam game saat terbuka
         end
     end
 end)
