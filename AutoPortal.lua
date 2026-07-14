@@ -127,49 +127,68 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Auto Win / Closest First Algorithm)
+-- 2. LOGIKA FITUR SCRIPT (Text Detection & Safe CFrame)
 -- ==========================================
 
+-- Fungsi untuk mendapatkan posisi dengan aman (Anti-Error)
+local function getSafeCFrame(prompt)
+    if prompt.Parent:IsA("BasePart") then
+        return prompt.Parent.CFrame
+    elseif prompt.Parent:IsA("Attachment") then
+        return CFrame.new(prompt.Parent.WorldPosition)
+    elseif prompt.Parent:IsA("Model") then
+        return prompt.Parent:GetPivot()
+    end
+    return nil
+end
+
 task.spawn(function()
-    while task.wait(0.1) do -- Loop cepat dan aman
+    while task.wait(0.1) do
         if not Toggles.AutoFarm then continue end
         
         local character = LocalPlayer.Character
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
-        -- Tabel penyimpan data objek beserta jaraknya
         local keys = {}
         local doors = {}
         local portals = {}
         
-        -- 1. TAHAP PEMINDAIAN & PENGHITUNGAN JARAK
+        -- 1. PEMINDAIAN MEMBACA TEKS UI & NAMA OBJEK
         for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") and obj.Enabled then
+            if obj:IsA("ProximityPrompt") then
+                -- Membaca properti dengan huruf kecil agar tidak sensitif huruf besar/kecil
                 local pName = string.lower(obj.Parent.Name)
                 local oName = string.lower(obj.Name)
+                local oText = string.lower(obj.ObjectText)
                 local aText = string.lower(obj.ActionText)
                 
-                -- Hitung jarak objek ini ke pemain
-                local distance = (rootPart.Position - obj.Parent.Position).Magnitude
-                local itemData = {prompt = obj, dist = distance}
+                local targetCFrame = getSafeCFrame(obj)
+                if not targetCFrame then continue end -- Abaikan jika tidak memiliki posisi fisik
                 
-                if string.find(pName, "key") or string.find(oName, "key") then
+                local distance = (rootPart.Position - targetCFrame.Position).Magnitude
+                local itemData = {prompt = obj, dist = distance, pos = targetCFrame}
+                
+                -- Deteksi Kunci (Lebih Akurat)
+                if string.find(pName, "key") or string.find(oName, "key") or string.find(oText, "key") or string.find(aText, "grab") or string.find(aText, "pick") then
                     table.insert(keys, itemData)
-                elseif string.find(pName, "door") or string.find(pName, "lock") or string.find(oName, "door") or string.find(pName, "drawer") then
+                    
+                -- Deteksi Pintu / Gembok / Laci
+                elseif string.find(pName, "door") or string.find(pName, "lock") or string.find(pName, "drawer") or string.find(oText, "door") or string.find(oText, "drawer") or string.find(aText, "open") or string.find(aText, "unlock") then
                     table.insert(doors, itemData)
+                    
+                -- Deteksi Portal Join/Exit
                 elseif string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "escape") then
                     table.insert(portals, itemData)
                 end
             end
         end
         
-        -- Fungsi untuk menyortir tabel dari jarak terdekat (dist terkecil)
+        -- Fungsi penyortiran jarak
         local function sortByDistance(a, b)
             return a.dist < b.dist
         end
         
-        -- Urutkan semua target dari yang terdekat ke terjauh
         table.sort(keys, sortByDistance)
         table.sort(doors, sortByDistance)
         table.sort(portals, sortByDistance)
@@ -177,44 +196,22 @@ task.spawn(function()
         local actionTaken = false
 
         -- ========================================
-        -- TAHAP EKSEKUSI (Berdasarkan Target Terdekat)
+        -- 2. TAHAP EKSEKUSI TARGET TERDEKAT
         -- ========================================
 
-        -- PRIORITAS 1: AMBIL KUNCI TERDEKAT
+        -- PRIORITAS 1: KUNCI
         if Toggles.PickupKeys and #keys > 0 then
-            local target = keys[1].prompt -- Selalu ambil urutan 1 (paling dekat)
-            
-            rootPart.CFrame = target.Parent.CFrame
-            task.wait(0.15) -- Jeda teleportasi stabil
-            
-            if fireproximityprompt then
-                fireproximityprompt(target, 1, true)
-            else
-                target:InputHoldBegin()
-                task.wait(target.HoldDuration)
-                target:InputHoldEnd()
-            end
-            
-            actionTaken = true
-            task.wait(0.1)
-        end
-
-        -- PRIORITAS 2: BUKA PINTU TERDEKAT (Jika tidak ada kunci di dekat pemain)
-        if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
-            local target = doors[1].prompt
-            
-            -- Cek: Jangan teleport ke pintu yang jaraknya lebih dari 300 meter
-            -- Ini mencegah teleportasi ke ruangan jauh yang belum di-render
-            if doors[1].dist < 300 then 
-                rootPart.CFrame = target.Parent.CFrame
+            local target = keys[1]
+            if target.dist < 300 then
+                rootPart.CFrame = target.pos
                 task.wait(0.15)
                 
                 if fireproximityprompt then
-                    fireproximityprompt(target, 1, true)
+                    fireproximityprompt(target.prompt, 1, true)
                 else
-                    target:InputHoldBegin()
-                    task.wait(target.HoldDuration)
-                    target:InputHoldEnd()
+                    target.prompt:InputHoldBegin()
+                    task.wait(target.prompt.HoldDuration)
+                    target.prompt:InputHoldEnd()
                 end
                 
                 actionTaken = true
@@ -222,29 +219,46 @@ task.spawn(function()
             end
         end
 
-        -- PRIORITAS 3: MASUK PORTAL (Join/Exit)
+        -- PRIORITAS 2: PINTU
+        if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
+            local target = doors[1]
+            if target.dist < 300 then 
+                rootPart.CFrame = target.pos
+                task.wait(0.15)
+                
+                if fireproximityprompt then
+                    fireproximityprompt(target.prompt, 1, true)
+                else
+                    target.prompt:InputHoldBegin()
+                    task.wait(target.prompt.HoldDuration)
+                    target.prompt:InputHoldEnd()
+                end
+                
+                actionTaken = true
+                task.wait(0.1)
+            end
+        end
+
+        -- PRIORITAS 3: PORTAL EKSPLISIT
         if Toggles.JoinGame and not actionTaken then
-            -- Coba portal tombol dulu (Exit/Play)
             if #portals > 0 and portals[1].dist < 300 then
-                local target = portals[1].prompt
-                rootPart.CFrame = target.Parent.CFrame
+                local target = portals[1]
+                rootPart.CFrame = target.pos
                 task.wait(0.2)
                 if fireproximityprompt then
-                    fireproximityprompt(target, 1, true)
+                    fireproximityprompt(target.prompt, 1, true)
                 end
-                task.wait(5) -- Jeda layar loading
                 actionTaken = true
+                task.wait(5) 
             end
             
-            -- Jika tidak ada portal tombol, coba portal sentuh (Lobi utama)
+            -- Portal Sentuh (Lobi)
             if not actionTaken then
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
                         local portalPart = obj.Parent
                         if portalPart and portalPart:IsA("BasePart") then
                             local distance = (rootPart.Position - portalPart.Position).Magnitude
-                            
-                            -- Hanya sentuh jika jarak portal kurang dari 300 meter
                             if distance < 300 then
                                 rootPart.CFrame = portalPart.CFrame
                                 task.wait(0.2)
@@ -265,4 +279,4 @@ task.spawn(function()
     end
 end)
 
-print("Custom GUI vFinal (Closest-First & Video Replica) loaded successfully!")
+print("Custom GUI vFinal (Text Reader & Safe CFrame) loaded successfully!")
