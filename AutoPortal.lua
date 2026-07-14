@@ -1,15 +1,13 @@
 -- ==========================================
--- SCRIPT FULL: GUI + AUTO FARM BUTA (BLIND INTERACT)
+-- SCRIPT FULL: GUI + AUTO FARM + TOUCH PORTAL LOBBY
 -- ==========================================
 
--- Menunggu game dimuat sepenuhnya
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
--- Mencegah GUI menumpuk (Menghapus GUI lama jika ada)
 if CoreGui:FindFirstChild("CustomKeysGUI") then
     CoreGui.CustomKeysGUI:Destroy()
 end
@@ -22,7 +20,7 @@ local Toggles = {
 }
 
 -- ==========================================
--- 1. MEMBUAT TAMPILAN GUI (Dengan Tombol - dan X)
+-- 1. TAMPILAN GUI
 -- ==========================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomKeysGUI"
@@ -38,7 +36,6 @@ MainFrame.Draggable = true
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
--- Top Bar (Menyimpan Judul dan Tombol)
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 35)
 TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -56,14 +53,13 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0.6, 0, 1, -2)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Keys | punyanaa -"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Text = "Keys | punya naa "
+Title.TextColor3 = Color3.fromRGB(232, 158, 184)
 Title.TextSize = 16
 Title.Font = Enum.Font.Code
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TopBar
 
--- Tombol Minimize (-)
 local MinBtn = Instance.new("TextButton")
 MinBtn.Size = UDim2.new(0, 30, 0, 30)
 MinBtn.Position = UDim2.new(1, -65, 0, 2)
@@ -73,7 +69,6 @@ MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 MinBtn.TextSize = 22
 MinBtn.Parent = TopBar
 
--- Tombol Close (X)
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 30, 0, 30)
 CloseBtn.Position = UDim2.new(1, -30, 0, 2)
@@ -84,7 +79,6 @@ CloseBtn.TextSize = 18
 CloseBtn.Font = Enum.Font.SourceSansBold
 CloseBtn.Parent = TopBar
 
--- Kontainer Isi (Agar bisa disembunyikan saat minimize)
 local ContentContainer = Instance.new("Frame")
 ContentContainer.Size = UDim2.new(1, 0, 1, -35)
 ContentContainer.Position = UDim2.new(0, 0, 0, 35)
@@ -161,7 +155,7 @@ FooterSubtext.TextSize = 12
 FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
--- Logika Tombol Minimize & Close
+-- Animasi Minimize/Close
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
@@ -180,7 +174,7 @@ CloseBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (INTERAKSI BUTA)
+-- 2. LOGIKA FITUR SCRIPT (PROMPT & TOUCH DETECTOR)
 -- ==========================================
 task.spawn(function()
     while task.wait(0.2) do
@@ -193,7 +187,7 @@ task.spawn(function()
             local rootPart = character.HumanoidRootPart
             local humanoid = character:FindFirstChild("Humanoid")
             
-            -- AUTO EQUIP APAPUN YANG ADA DI TAS
+            -- EQUIP TAS OTOMATIS
             local backpack = LocalPlayer:FindFirstChild("Backpack")
             if backpack and humanoid then
                 for _, tool in pairs(backpack:GetChildren()) do
@@ -207,50 +201,57 @@ task.spawn(function()
             local interactables = {}
             local portals = {}
             
+            -- SCANNING SELURUH MAP
             for _, obj in pairs(workspace:GetDescendants()) do
+                
+                -- Deteksi 1: Benda dengan Tombol (Keys, Doors, Exit Portals)
                 if obj:IsA("ProximityPrompt") then
-                    -- Abaikan jika prompt itu menempel di badan pemain sendiri
                     if obj:IsDescendantOf(character) then continue end
                     
                     local aText = string.lower(obj.ActionText)
                     local pName = string.lower(obj.Parent and obj.Parent.Name or "")
                     
-                    -- Filter Portal
                     local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk") or string.find(pName, "portal")
 
                     if obj.Parent and obj.Parent:IsA("BasePart") then
                         local dist = (rootPart.Position - obj.Parent.Position).Magnitude
-                        local itemData = {prompt = obj, part = obj.Parent, distance = dist}
-                        
                         if isPortal then
-                            table.insert(portals, itemData)
+                            table.insert(portals, {part = obj.Parent, prompt = obj, distance = dist, isTouch = false})
                         else
-                            -- MASUKKAN SEMUA BENDA LAINNYA KE SINI (Kunci, Pintu, Topi, Laci, dll)
-                            table.insert(interactables, itemData)
+                            table.insert(interactables, {part = obj.Parent, prompt = obj, distance = dist})
                         end
+                    end
+                    
+                -- Deteksi 2: Benda Sentuh (Portal Lobi Ungu seperti di gambar Anda)
+                elseif obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
+                    local portalPart = obj.Parent
+                    if portalPart and portalPart:IsA("BasePart") then
+                        local dist = (rootPart.Position - portalPart.Position).Magnitude
+                        -- Kita abaikan lantai atau spawn point, portal biasanya kecil
+                        table.insert(portals, {part = portalPart, distance = dist, isTouch = true})
                     end
                 end
             end
             
+            -- Urutkan dari yang terdekat
             table.sort(interactables, function(a, b) return a.distance < b.distance end)
             table.sort(portals, function(a, b) return a.distance < b.distance end)
             
             local actionTaken = false
 
-            -- EKSEKUSI 1: BUKA/AMBIL APAPUN YANG ADA DI DEKAT PEMAIN
+            -- EKSEKUSI 1: BUKA/AMBIL BARANG DALAM GAME
             if (Toggles.PickupKeys or Toggles.UnlockDoors) and #interactables > 0 then
                 local target = interactables[1]
                 if target.distance < 400 then
                     target.prompt.Enabled = true
                     
-                    -- Mendarat tepat di atas benda tersebut agar tidak nyangkut
                     rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0), target.part.Position)
                     task.wait(0.2) 
                     
                     if fireproximityprompt then
                         fireproximityprompt(target.prompt, 1, true)
                         task.wait(0.1)
-                        fireproximityprompt(target.prompt, 1, true) -- Tembak 2x untuk memastikan
+                        fireproximityprompt(target.prompt, 1, true)
                     end
                     
                     actionTaken = true
@@ -258,17 +259,31 @@ task.spawn(function()
                 end
             end
 
-            -- EKSEKUSI 2: MASUK PORTAL
+            -- EKSEKUSI 2: MASUK PORTAL LOBI / EXIT
             if Toggles.JoinGame and not actionTaken then
                 if #portals > 0 and portals[1].distance < 400 then
                     local target = portals[1]
-                    rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
-                    task.wait(0.2)
                     
-                    if fireproximityprompt then
-                        fireproximityprompt(target.prompt, 1, true)
+                    -- Jika ini portal sentuh fisik (Lobi)
+                    if target.isTouch then
+                        rootPart.CFrame = target.part.CFrame
+                        task.wait(0.2)
+                        if firetouchinterest then
+                            firetouchinterest(rootPart, target.part, 0)
+                            task.wait(0.1)
+                            firetouchinterest(rootPart, target.part, 1)
+                        end
+                        task.wait(5) -- Jeda layar hitam loading
+                        
+                    -- Jika ini portal yang harus ditekan 'E' (seperti Exit di akhir game)
+                    else
+                        rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
+                        task.wait(0.2)
+                        if fireproximityprompt then
+                            fireproximityprompt(target.prompt, 1, true)
+                        end
+                        task.wait(5)
                     end
-                    task.wait(5)
                 end
             end
             
@@ -276,4 +291,4 @@ task.spawn(function()
     end
 end)
 
-print("GUI & Script berhasil dimuat ulang sepenuhnya!")
+print("GUI & Script Lobi Berhasil Dimuat!")
