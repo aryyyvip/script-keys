@@ -127,87 +127,105 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (State Machine - Anti Balik Lobby)
+-- 2. LOGIKA FITUR SCRIPT (Speed Farm & Anti-Render Lag)
 -- ==========================================
 
+-- Variabel untuk mencegah salah deteksi Lobi saat game sedang loading ruangan baru
+local lastItemFoundTime = tick() 
+
 task.spawn(function()
-    while task.wait(0.5) do
-        -- Hentikan proses jika AutoFarm tidak dicentang
+    -- Loop dipercepat menjadi 0.05 detik
+    while task.wait(0.05) do
         if not Toggles.AutoFarm then continue end
         
         local character = LocalPlayer.Character
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
-        -- Variabel pendeteksi status (State) kita saat ini
-        local isFarmingItem = false 
+        -- Wadah Array untuk memisahkan target
+        local keys = {}
+        local doors = {}
+        local portals = {}
         
-        -- ========================================
-        -- PRIORITAS 1: MENCARI ITEM (ARENA STATE)
-        -- ========================================
-        if Toggles.PickupKeys or Toggles.UnlockDoors then
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj:IsA("ProximityPrompt") and obj.Enabled then
-                    local parentName = string.lower(obj.Parent.Name)
-                    local objName = string.lower(obj.Name)
-                    
-                    local isKey = string.find(parentName, "key") or string.find(objName, "key")
-                    local isDoor = string.find(parentName, "door") or string.find(parentName, "lock") or string.find(objName, "door")
-                    
-                    -- Jika ada item yang valid untuk diinteraksi
-                    if (Toggles.PickupKeys and isKey) or (Toggles.UnlockDoors and isDoor) then
-                        isFarmingItem = true -- Tandai bahwa kita sedang sibuk di dalam arena
-                        
-                        -- Eksekusi Teleport & Interaksi
-                        rootPart.CFrame = obj.Parent.CFrame * CFrame.new(0, 0, 1.5)
-                        task.wait(0.2)
-                        
-                        if fireproximityprompt then
-                            fireproximityprompt(obj, 1, true)
-                        else
-                            obj:InputHoldBegin()
-                            task.wait(obj.HoldDuration)
-                            obj:InputHoldEnd()
-                        end
-                        
-                        task.wait(0.5) -- Jeda antar pengambilan item
-                        break -- Selesaikan 1 item per loop agar pergerakan tidak glitch
-                    end
+        -- Scanning seluruh workspace dengan cepat
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") and obj.Enabled then
+                local pName = string.lower(obj.Parent.Name)
+                local oName = string.lower(obj.Name)
+                
+                if string.find(pName, "key") or string.find(oName, "key") then
+                    table.insert(keys, obj)
+                elseif string.find(pName, "door") or string.find(pName, "lock") or string.find(oName, "door") then
+                    table.insert(doors, obj)
                 end
+            elseif (obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest") then
+                table.insert(portals, obj.Parent)
             end
         end
-        
+
         -- ========================================
-        -- PRIORITAS 2: JOIN PORTAL (LOBBY STATE)
+        -- EKSEKUSI 1: AMBIL KUNCI (Prioritas Tertinggi)
         -- ========================================
-        -- Jika tidak ada satupun item yang sedang di-farm (map kosong dari kunci/pintu)
-        -- MAKA kita asumsikan karakter sedang berada di Lobby
-        if not isFarmingItem and Toggles.JoinGame then
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
-                    local portalPart = obj.Parent
-                    if portalPart and portalPart:IsA("BasePart") then
-                        
-                        -- Teleportasi ke portal (seperti "Dimulai Di Sini")
-                        rootPart.CFrame = portalPart.CFrame
-                        task.wait(0.2)
-                        
-                        -- Simulasi tabrakan fisik paksa
-                        if firetouchinterest then
-                            firetouchinterest(rootPart, portalPart, 0)
-                            task.wait(0.1)
-                            firetouchinterest(rootPart, portalPart, 1)
-                        end
-                        
-                        print("[LOG] Menyentuh Portal. Menunggu server memuat arena...")
-                        task.wait(15) -- Jeda panjang agar map punya waktu untuk me-render kunci/pintu
-                        break -- Hentikan loop pencarian portal agar tidak terlempar ke portal ganda
-                    end
+        if Toggles.PickupKeys and #keys > 0 then
+            lastItemFoundTime = tick() -- Reset timer karena kita menemukan item arena
+            
+            -- Teleport langsung menyatu dengan posisi kunci agar seketika terdeteksi
+            rootPart.CFrame = keys[1].Parent.CFrame
+            task.wait(0.05) 
+            
+            if fireproximityprompt then
+                fireproximityprompt(keys[1], 1, true)
+            else
+                keys[1]:InputHoldBegin()
+                task.wait(keys[1].HoldDuration)
+                keys[1]:InputHoldEnd()
+            end
+            task.wait(0.05) -- Jeda ultra-singkat antar pengambilan
+            continue -- Ulangi loop dari awal untuk mendeteksi perubahan lingkungan
+        end
+
+        -- ========================================
+        -- EKSEKUSI 2: BUKA PINTU
+        -- ========================================
+        if Toggles.UnlockDoors and #doors > 0 then
+            lastItemFoundTime = tick() -- Reset timer
+            
+            rootPart.CFrame = doors[1].Parent.CFrame
+            task.wait(0.05)
+            
+            if fireproximityprompt then
+                fireproximityprompt(doors[1], 1, true)
+            else
+                doors[1]:InputHoldBegin()
+                task.wait(doors[1].HoldDuration)
+                doors[1]:InputHoldEnd()
+            end
+            task.wait(0.05)
+            continue
+        end
+
+        -- ========================================
+        -- EKSEKUSI 3: JOIN PORTAL (Dengan Validasi Waktu)
+        -- ========================================
+        -- Hanya masuk portal JIKA tidak ada kunci/pintu DAN sudah berlalu 3 detik sejak item terakhir ditemukan
+        -- (Angka 3 detik mencegah script mengeksekusi portal saat game sedang nge-lag render ruang sebelah)
+        if Toggles.JoinGame and #keys == 0 and #doors == 0 and #portals > 0 then
+            if tick() - lastItemFoundTime > 3 then
+                rootPart.CFrame = portals[1].CFrame
+                task.wait(0.1)
+                
+                if firetouchinterest then
+                    firetouchinterest(rootPart, portals[1], 0)
+                    task.wait(0.05)
+                    firetouchinterest(rootPart, portals[1], 1)
                 end
+                
+                print("[LOG] Eksekusi Join Portal!")
+                task.wait(10) -- Jeda panjang agar aman mendarat di arena
             end
         end
         
     end
 end)
 
-print("Custom GUI v3.0 (State Machine) loaded successfully!")
+print("Custom GUI v4.0 (Speed Farm Optimization) loaded successfully!")
