@@ -180,23 +180,10 @@ end)
 task.spawn(function()
     while task.wait(0.2) do
         if not Toggles.AutoFarm then continue end
-        if not ScreenGui.Parent then break end -- Mencegah script jalan jika GUI di-close
         
         local character = LocalPlayer.Character
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
-        local humanoid = character:FindFirstChild("Humanoid")
-        
-        -- [TAMBAHAN 1]: AUTO-EQUIP KUNCI DARI TAS KE TANGAN
-        local backpack = LocalPlayer:FindFirstChild("Backpack")
-        if backpack and humanoid then
-            for _, tool in pairs(backpack:GetChildren()) do
-                if tool:IsA("Tool") then
-                    humanoid:EquipTool(tool)
-                    task.wait(0.1)
-                end
-            end
-        end
         
         local keys = {}
         local doors = {}
@@ -205,14 +192,9 @@ task.spawn(function()
         -- 1. PEMINDAIAN & FILTERING OBJEK SPESIFIK
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("ProximityPrompt") then
-                
-                -- [TAMBAHAN 2]: ABAIKAN KUNCI JIKA SUDAH BERADA DI TANGAN KITA
-                if obj:IsDescendantOf(character) then continue end
-                
-                -- Menggunakan perlindungan (obj.Parent and ...) agar tidak error
-                local pName = string.lower(obj.Parent and obj.Parent.Name or "")
                 local aText = string.lower(obj.ActionText)
                 local oText = string.lower(obj.ObjectText)
+                local pName = string.lower(obj.Parent.Name)
                 local oName = string.lower(obj.Name)
                 
                 -- Kategori 1: Portal (Prioritas Paling Bawah)
@@ -262,6 +244,7 @@ task.spawn(function()
                 target.prompt.MaxActivationDistance = 50
                 
                 -- Teleport ke koordinat absolut (3 studs di atas, 3 studs di samping objek)
+                -- Ini mencegah karakter masuk/nyangkut ke dalam hitbox lemari jika kunci ada di dalam lemari
                 rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
                 task.wait(0.1)
                 
@@ -283,9 +266,7 @@ task.spawn(function()
                 target.prompt.MaxActivationDistance = 50
                 
                 rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
-                
-                -- [TAMBAHAN 3]: Jeda diperpanjang agar server mendeteksi kunci sudah di tangan sebelum berinteraksi
-                task.wait(0.4) 
+                task.wait(0.1)
                 
                 if fireproximityprompt then
                     fireproximityprompt(target.prompt, 1, true)
@@ -314,4 +295,4 @@ task.spawn(function()
     end
 end)
 
-print("Custom GUI vFinal (Direct Teleport + Door Fix) loaded successfully!")
+print("Custom GUI vFinal (Direct Teleport & Anti-Stuck) loaded successfully!")
