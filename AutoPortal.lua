@@ -121,38 +121,91 @@ task.spawn(function()
         if Toggles.AutoFarm and Toggles.JoinGame then
             local character = LocalPlayer.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
-                
                 -- Mencari portal sentuh di Lobby
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
                         local portalPart = obj.Parent
                         if portalPart and portalPart:IsA("BasePart") then
-                            -- Teleportasi
+                            -- Teleportasi ke portal
                             character.HumanoidRootPart.CFrame = portalPart.CFrame
                             task.wait(6) -- Jeda setelah pindah server/room
                         end
                     end
                 end
-                
             end
         end
     end
 end)
 
--- Sistem Unlock Doors (Kerangka)
+-- Sistem Unlock Doors
 task.spawn(function()
     while task.wait(0.5) do
         if Toggles.AutoFarm and Toggles.UnlockDoors then
-            -- Tempat menaruh kode menembus/membuka pintu game Keys nantinya
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                -- Mencari objek dengan ProximityPrompt (interaksi tombol 'E' dll) di dalam Workspace
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") then
+                        local parentObj = obj.Parent
+                        local parentName = string.lower(parentObj.Name)
+                        
+                        -- Memastikan ini adalah pintu atau gembok
+                        if string.find(parentName, "door") or string.find(parentName, "lock") then
+                            -- Teleportasi ke depan pintu
+                            character.HumanoidRootPart.CFrame = parentObj.CFrame
+                            task.wait(0.2)
+                            
+                            -- Otomatis mengeksekusi 'ProximityPrompt' tanpa ditekan manual
+                            if fireproximityprompt then
+                                fireproximityprompt(obj, 1, true)
+                            end
+                            task.wait(0.5) -- Jeda sebentar agar tidak terdeteksi spam
+                        end
+                    end
+                end
+            end
         end
     end
 end)
 
--- Sistem Pickup Keys (Kerangka)
+-- Sistem Pickup Keys
 task.spawn(function()
     while task.wait(0.5) do
         if Toggles.AutoFarm and Toggles.PickupKeys then
-            -- Tempat menaruh kode otomatis ambil kunci nantinya
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    -- Skenario 1: Jika kunci menggunakan sistem ProximityPrompt
+                    if obj:IsA("ProximityPrompt") then
+                        local parentObj = obj.Parent
+                        if string.find(string.lower(parentObj.Name), "key") then
+                            character.HumanoidRootPart.CFrame = parentObj.CFrame
+                            task.wait(0.2)
+                            if fireproximityprompt then
+                                fireproximityprompt(obj, 1, true)
+                            end
+                            task.wait(0.5)
+                        end
+                    
+                    -- Skenario 2: Jika kunci berbentuk Tools yang jatuh di lantai dan bisa disentuh
+                    elseif obj:IsA("Tool") and string.find(string.lower(obj.Name), "key") then
+                        local handle = obj:FindFirstChild("Handle") or obj:FindFirstChildWhichIsA("BasePart")
+                        if handle then
+                            -- Teleportasi ke Kunci
+                            character.HumanoidRootPart.CFrame = handle.CFrame
+                            task.wait(0.2)
+                            
+                            -- Memalsukan event "sentuhan" antara pemain dan kunci
+                            if firetouchinterest then
+                                firetouchinterest(character.HumanoidRootPart, handle, 0)
+                                task.wait(0.1)
+                                firetouchinterest(character.HumanoidRootPart, handle, 1)
+                            end
+                            task.wait(0.5)
+                        end
+                    end
+                end
+            end
         end
     end
 end)
