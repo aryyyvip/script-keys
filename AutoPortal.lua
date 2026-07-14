@@ -127,11 +127,8 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Speed Farm & 11s Render Delay)
+-- 2. LOGIKA FITUR SCRIPT (Final: Eksekusi Linear Berbasis Kondisi)
 -- ==========================================
-
--- Variabel penahan eksekusi portal
-local lastItemFoundTime = tick() 
 
 task.spawn(function()
     while task.wait(0.05) do
@@ -141,93 +138,115 @@ task.spawn(function()
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
-        local keys = {}
-        local doors = {}
-        local portals = {}
+        -- Kita hanya butuh satu variabel status untuk memastikan
+        -- script hanya melakukan SATU aksi per iterasi loop
+        local actionTaken = false
         
-        -- Memindai seluruh workspace
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") and obj.Enabled then
-                local pName = string.lower(obj.Parent.Name)
-                local oName = string.lower(obj.Name)
-                
-                if string.find(pName, "key") or string.find(oName, "key") then
-                    table.insert(keys, obj)
-                elseif string.find(pName, "door") or string.find(pName, "lock") or string.find(oName, "door") then
-                    table.insert(doors, obj)
+        -- ========================================
+        -- 1. PRIORITAS TERTINGGI: AMBIL KUNCI
+        -- ========================================
+        if Toggles.PickupKeys and not actionTaken then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") and obj.Enabled then
+                    local pName = string.lower(obj.Parent.Name)
+                    local oName = string.lower(obj.Name)
+                    
+                    if string.find(pName, "key") or string.find(oName, "key") then
+                        rootPart.CFrame = obj.Parent.CFrame
+                        task.wait(0.1) 
+                        
+                        if fireproximityprompt then
+                            fireproximityprompt(obj, 1, true)
+                        else
+                            obj:InputHoldBegin()
+                            task.wait(obj.HoldDuration)
+                            obj:InputHoldEnd()
+                        end
+                        
+                        actionTaken = true
+                        task.wait(0.5) -- Jeda stabilisasi setelah mengambil item
+                        break -- Hentikan pencarian, ulangi loop dari awal
+                    end
                 end
-            elseif (obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest") then
-                table.insert(portals, obj.Parent)
             end
         end
 
         -- ========================================
-        -- EKSEKUSI 1: AMBIL KUNCI
+        -- 2. PRIORITAS KEDUA: BUKA PINTU
         -- ========================================
-        if Toggles.PickupKeys and #keys > 0 then
-            lastItemFoundTime = tick() -- Segarkan timer setiap kali menemukan item
-            
-            rootPart.CFrame = keys[1].Parent.CFrame
-            task.wait(0.05) 
-            
-            if fireproximityprompt then
-                fireproximityprompt(keys[1], 1, true)
-            else
-                keys[1]:InputHoldBegin()
-                task.wait(keys[1].HoldDuration)
-                keys[1]:InputHoldEnd()
-            end
-            task.wait(0.05)
-            continue 
-        end
-
-        -- ========================================
-        -- EKSEKUSI 2: BUKA PINTU
-        -- ========================================
-        if Toggles.UnlockDoors and #doors > 0 then
-            lastItemFoundTime = tick() -- Segarkan timer
-            
-            rootPart.CFrame = doors[1].Parent.CFrame
-            task.wait(0.05)
-            
-            if fireproximityprompt then
-                fireproximityprompt(doors[1], 1, true)
-            else
-                doors[1]:InputHoldBegin()
-                task.wait(doors[1].HoldDuration)
-                doors[1]:InputHoldEnd()
-            end
-            task.wait(0.05)
-            continue
-        end
-
-        -- ========================================
-        -- EKSEKUSI 3: JOIN PORTAL 
-        -- ========================================
-        if Toggles.JoinGame and #keys == 0 and #doors == 0 and #portals > 0 then
-            -- Menerapkan delay 11 detik sesuai observasi
-            if tick() - lastItemFoundTime > 11 then
-                rootPart.CFrame = portals[1].CFrame
-                task.wait(0.1)
-                
-                if firetouchinterest then
-                    firetouchinterest(rootPart, portals[1], 0)
-                    task.wait(0.05)
-                    firetouchinterest(rootPart, portals[1], 1)
+        if Toggles.UnlockDoors and not actionTaken then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") and obj.Enabled then
+                    local pName = string.lower(obj.Parent.Name)
+                    local oName = string.lower(obj.Name)
+                    
+                    if string.find(pName, "door") or string.find(pName, "lock") or string.find(oName, "door") then
+                        rootPart.CFrame = obj.Parent.CFrame
+                        task.wait(0.1)
+                        
+                        if fireproximityprompt then
+                            fireproximityprompt(obj, 1, true)
+                        else
+                            obj:InputHoldBegin()
+                            task.wait(obj.HoldDuration)
+                            obj:InputHoldEnd()
+                        end
+                        
+                        actionTaken = true
+                        task.wait(0.5)
+                        break 
+                    end
                 end
-                
-                print("[LOG] Eksekusi Portal setelah 11 detik tidak ada aktivitas.")
-                
-                -- Memberikan waktu loading screen yang lebih panjang setelah masuk portal
-                task.wait(15) 
-                
-                -- Segarkan ulang timer setelah keluar dari loading screen
-                -- agar tidak langsung terpental ke portal berikutnya
-                lastItemFoundTime = tick() 
+            end
+        end
+
+        -- ========================================
+        -- 3. PRIORITAS TERAKHIR: PORTAL (MASUK LOBBY / KELUAR GAME)
+        -- ========================================
+        -- Portal HANYA akan dieksekusi jika tidak ada satupun Kunci atau Pintu yang bisa diambil/dibuka
+        if Toggles.JoinGame and not actionTaken then
+            -- A. Cari Portal berbasis Tombol (Exit Door, dsb)
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") and obj.Enabled then
+                    local aText = string.lower(obj.ActionText)
+                    if string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "escape") then
+                        rootPart.CFrame = obj.Parent.CFrame
+                        task.wait(0.1)
+                        if fireproximityprompt then
+                            fireproximityprompt(obj, 1, true)
+                        end
+                        actionTaken = true
+                        task.wait(5) -- Jeda loading screen
+                        break
+                    end
+                end
+            end
+            
+            -- B. Jika tidak ada portal tombol, cari Portal sentuh (seperti yang di Lobby)
+            if not actionTaken then
+                for _, obj in pairs(workspace:GetDescendants()) do
+                    if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
+                        local portalPart = obj.Parent
+                        if portalPart and portalPart:IsA("BasePart") then
+                            rootPart.CFrame = portalPart.CFrame
+                            task.wait(0.1)
+                            
+                            if firetouchinterest then
+                                firetouchinterest(rootPart, portalPart, 0)
+                                task.wait(0.1)
+                                firetouchinterest(rootPart, portalPart, 1)
+                            end
+                            
+                            actionTaken = true
+                            task.wait(10) -- Jeda panjang untuk loading room
+                            break
+                        end
+                    end
+                end
             end
         end
         
     end
 end)
 
-print("Custom GUI v4.1 (11s Delay Applied) loaded successfully!")
+print("Custom GUI v5.0 (Linear Execution Applied) loaded successfully!")
