@@ -127,10 +127,9 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Text Detection & Safe CFrame)
+-- 2. LOGIKA FITUR SCRIPT (Bypass Terjemahan Bahasa & Anti Nyangkut)
 -- ==========================================
 
--- Fungsi untuk mendapatkan posisi dengan aman (Anti-Error)
 local function getSafeCFrame(prompt)
     if prompt.Parent:IsA("BasePart") then
         return prompt.Parent.CFrame
@@ -150,61 +149,52 @@ task.spawn(function()
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
-        local keys = {}
-        local doors = {}
+        local interactables = {}
         local portals = {}
         
-        -- 1. PEMINDAIAN MEMBACA TEKS UI & NAMA OBJEK
+        -- 1. PEMINDAIAN MEMBACA TEKS UI (Support Bahasa Inggris & Indonesia)
         for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") then
-                -- Membaca properti dengan huruf kecil agar tidak sensitif huruf besar/kecil
-                local pName = string.lower(obj.Parent.Name)
-                local oName = string.lower(obj.Name)
-                local oText = string.lower(obj.ObjectText)
+            if obj:IsA("ProximityPrompt") and obj.Enabled then
                 local aText = string.lower(obj.ActionText)
+                local oText = string.lower(obj.ObjectText)
                 
                 local targetCFrame = getSafeCFrame(obj)
-                if not targetCFrame then continue end -- Abaikan jika tidak memiliki posisi fisik
+                if not targetCFrame then continue end 
                 
                 local distance = (rootPart.Position - targetCFrame.Position).Magnitude
                 local itemData = {prompt = obj, dist = distance, pos = targetCFrame}
                 
-                -- Deteksi Kunci (Lebih Akurat)
-                if string.find(pName, "key") or string.find(oName, "key") or string.find(oText, "key") or string.find(aText, "grab") or string.find(aText, "pick") then
-                    table.insert(keys, itemData)
-                    
-                -- Deteksi Pintu / Gembok / Laci
-                elseif string.find(pName, "door") or string.find(pName, "lock") or string.find(pName, "drawer") or string.find(oText, "door") or string.find(oText, "drawer") or string.find(aText, "open") or string.find(aText, "unlock") then
-                    table.insert(doors, itemData)
-                    
-                -- Deteksi Portal Join/Exit
-                elseif string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "escape") then
+                -- Deteksi Portal Join/Exit (Inggris & Indonesia)
+                if string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "escape") or string.find(aText, "keluar") or string.find(aText, "masuk") then
                     table.insert(portals, itemData)
+                else
+                    -- Deteksi Kunci, Pintu, Laci, dan semua tombol yang bertuliskan "Tekan"
+                    table.insert(interactables, itemData)
                 end
             end
         end
         
-        -- Fungsi penyortiran jarak
         local function sortByDistance(a, b)
             return a.dist < b.dist
         end
         
-        table.sort(keys, sortByDistance)
-        table.sort(doors, sortByDistance)
+        table.sort(interactables, sortByDistance)
         table.sort(portals, sortByDistance)
         
         local actionTaken = false
 
         -- ========================================
-        -- 2. TAHAP EKSEKUSI TARGET TERDEKAT
+        -- 2. TAHAP EKSEKUSI (Berdasarkan Jarak Terdekat)
         -- ========================================
 
-        -- PRIORITAS 1: KUNCI
-        if Toggles.PickupKeys and #keys > 0 then
-            local target = keys[1]
+        -- PRIORITAS 1: AMBIL/BUKA APA SAJA DI DEKAT PEMAIN (Kunci & Pintu)
+        if (Toggles.PickupKeys or Toggles.UnlockDoors) and #interactables > 0 then
+            local target = interactables[1]
+            
             if target.dist < 300 then
-                rootPart.CFrame = target.pos
-                task.wait(0.15)
+                -- Teleport dengan offset +3 di sumbu Y agar karakter tidak nyangkut di dalam meja/lantai
+                rootPart.CFrame = target.pos * CFrame.new(0, 3, 0)
+                task.wait(0.2)
                 
                 if fireproximityprompt then
                     fireproximityprompt(target.prompt, 1, true)
@@ -215,31 +205,11 @@ task.spawn(function()
                 end
                 
                 actionTaken = true
-                task.wait(0.1)
+                task.wait(0.2)
             end
         end
 
-        -- PRIORITAS 2: PINTU
-        if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
-            local target = doors[1]
-            if target.dist < 300 then 
-                rootPart.CFrame = target.pos
-                task.wait(0.15)
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
-                else
-                    target.prompt:InputHoldBegin()
-                    task.wait(target.prompt.HoldDuration)
-                    target.prompt:InputHoldEnd()
-                end
-                
-                actionTaken = true
-                task.wait(0.1)
-            end
-        end
-
-        -- PRIORITAS 3: PORTAL EKSPLISIT
+        -- PRIORITAS 2: PORTAL EKSPLISIT (Masuk Game / Exit Game)
         if Toggles.JoinGame and not actionTaken then
             if #portals > 0 and portals[1].dist < 300 then
                 local target = portals[1]
@@ -279,4 +249,4 @@ task.spawn(function()
     end
 end)
 
-print("Custom GUI vFinal (Text Reader & Safe CFrame) loaded successfully!")
+print("Custom GUI vFinal (Indonesian Language Bypass) loaded successfully!")
