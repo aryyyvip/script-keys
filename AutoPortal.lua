@@ -1,135 +1,155 @@
--- [[ KEYS | PUNYA NAA - WORK SCRIPT 2026 ]] --
+-- [[ KEYS | PUNYA NAA - COMPACT & FIXED VERSION ]] --
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("Keys | punya naa", "DarkTheme")
+-- Menggunakan library GUI yang jauh lebih kecil dan responsif
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
 
--- [[ TABS & SECTIONS ]] --
-local MainTab = Window:NewTab("Config")
-local MainSection = MainTab:NewSection("Automation")
+local Window = OrionLib:MakeWindow({
+    Name = "Keys | punya naa", 
+    HidePremium = true, 
+    SaveConfig = false, 
+    IntroText = "Loading...",
+    IntroIcon = "rbxassetid://4483345998"
+})
 
--- Pemain Lokal
-local Player = game.Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
-
--- Fungsi Teleport Aman (Bypass Anti-Cheat Dasar)
-local function safeTeleport(targetCFrame)
-    local character = Player.Character
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        character.HumanoidRootPart.CFrame = targetCFrame
+-- Memastikan ukuran GUI kecil dan pas untuk layar mobile/PC (mengikuti gambar)
+if game.CoreGui:FindFirstChild("Orion") then
+    local mainFrame = game.CoreGui.Orion:FindFirstChild("Main")
+    if mainFrame then
+        mainFrame.Size = UDim2.new(0, 380, 0, 250) -- Mengunci ukuran agar minimalis
     end
 end
 
--- [[ 1. FITUR AUTOFARM / AUTO WINS ]] --
--- Mengotomatiskan jalan menuju pintu keluar utama untuk memenangkan game
-MainSection:NewToggle("AutoFarm", "Otomatis menuju pintu keluar utama untuk menang", function(state)
-    _G.AutoFarm = state
-    while _G.AutoFarm do
-        task.wait(1)
-        pcall(function()
-            -- Mencari portal keluar/pintu EXIT seperti di dalam video gameplay
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj.Name == "ExitDoor" or obj.Name == "EscapePortal" or obj.Name:lower():find("exit") then
-                    if obj:IsA("BasePart") then
-                        safeTeleport(obj.CFrame * CFrame.new(0, 2, 0))
-                    elseif obj:IsA("Model") and obj:FindFirstChildOfClass("BasePart") then
-                        safeTeleport(obj:GetPivot() * CFrame.new(0, 2, 0))
-                    end
-                end
-            end
-        end)
-    end
-end)
+local Tab = Window:MakeTab({
+    Name = "Config",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
 
--- [[ 2. FITUR UNLOCK DOORS ]] --
--- Mengotomatiskan pembukaan pintu terkunci dengan memicu tombol interaksi jarak jauh
-MainSection:NewToggle("Unlock Doors", "Buka pintu otomatis menggunakan ProximityPrompt", function(state)
-    _G.UnlockDoors = state
-    while _G.UnlockDoors do
-        task.wait(0.3)
-        pcall(function()
-            for _, door in pairs(workspace:GetDescendants()) do
-                if door.Name:lower():find("door") or door.Name:lower():find("gate") then
-                    -- Menyalakan interaksi instan jika ada prompt interaksi pintu ("E" atau "G")
-                    local prompt = door:FindFirstChildOfClass("ProximityPrompt")
-                    if prompt then
-                        -- Sesuaikan jarak agar prompt bisa dieksekusi dari jarak jauh
-                        prompt.MaxActivationDistance = 9999
-                        fireproximityprompt(prompt)
-                    end
-                end
-            end
-        end)
-    end
-end)
+-- Variabel Pemain
+local Player = game.Players.LocalPlayer
 
--- [[ 3. FITUR PICKUP KEYS ]] --
--- Mendeteksi objek kunci di dalam map lalu menteleportasikannya langsung ke karakter Anda
-MainSection:NewToggle("Pickup Keys", "Otomatis mengambil seluruh kunci di dalam map", function(state)
-    _G.PickupKeys = state
-    while _G.PickupKeys do
-        task.wait(0.5)
-        pcall(function()
-            local character = Player.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                for _, obj in pairs(workspace:GetDescendants()) do
-                    -- Mendeteksi objek bertuliskan "Key" atau "Kunci"
-                    if obj.Name:lower():find("key") or obj.Name:lower():find("kunci") then
-                        if obj:IsA("BasePart") and obj.Parent:IsA("Model") then
-                            -- Teleport model kunci ke tubuh pemain
-                            obj.Parent:PivotTo(character.HumanoidRootPart.CFrame)
-                        elseif obj:IsA("BasePart") then
-                            obj.CFrame = character.HumanoidRootPart.CFrame
-                        end
-                        
-                        -- Otomatis menekan tombol ambil jika kunci menggunakan ProximityPrompt
-                        local prompt = obj:FindFirstChildOfClass("ProximityPrompt") or obj.Parent:FindFirstChildOfClass("ProximityPrompt")
-                        if prompt then
-                            prompt.MaxActivationDistance = 9999
-                            fireproximityprompt(prompt)
-                        end
-                    end
-                end
-            end
-        end)
-    end
-end)
-
--- [[ 4. FITUR JOIN GAME ]] --
--- Otomatis mendeteksi tombol lobi "Join" saat game baru dimulai atau ketika Anda berada di lobi utama
-MainSection:NewToggle("Join Game", "Otomatis menekan tombol Join / Masuk Lobi baru", function(state)
-    _G.JoinGame = state
-    while _G.JoinGame do
-        task.wait(1)
-        pcall(function()
-            -- Meniru perilaku tombol "Join" di lobi atas layar seperti pada video menit 00:01
-            local gui = Player:FindFirstChildOfClass("PlayerGui")
-            if gui then
-                for _, v in pairs(gui:GetDescendants()) do
-                    if v:IsA("TextButton") and (v.Text:lower():find("join") or v.Name:lower():find("join")) then
-                        if v.Visible then
-                            -- Simulasi klik kiri pada UI Button resmi game
-                            gui.CurrentScreenGui = v.Parent
-                            firesignal(v.MouseButton1Click)
-                        end
-                    end
-                end
-            end
-        end)
-    end
-end)
-
--- [[ TAMBAHAN FITUR INSTANT PRESS (Sesuai Gameplay Video) ]] --
--- Di video terdapat fitur 'Instant Press', ini adalah pengoptimalisasi bypass durasi tahan tombol
-local MiscSection = MainTab:NewSection("Bypass Utility")
-MiscSection:NewToggle("Instant Interaction", "Menghapus durasi loading saat menahan tombol E", function(state)
-    _G.InstantPress = state
-    game:GetService("ProximityPromptService").PromptButtonHoldBegan:Connect(function(prompt)
-        if _G.InstantPress then
-            fireproximityprompt(prompt)
+-- Fungsi pengaman agar tidak ngebug teleport di lobby utama
+local function isInMatch()
+    -- Cek jika ada objek khusus game (seperti monster/pintu match). Jika di lobby (PlaceID lobi), kembalikan false.
+    if workspace:FindFirstChild("Lobby") or not workspace:FindFirstChild("MatchFolder") then
+        -- Catatan: Jika nama folder game bukan 'MatchFolder', script akan mendeteksi dari ada tidaknya pintu keluar
+        if not workspace:FindFirstChild("ExitDoor") and not workspace:FindFirstChild("EscapePortal") then
+            return false -- Sedang di Lobby
         end
-    end)
-end)
+    end
+    return true -- Sedang di dalam Match
+end
 
--- [[ FOOTER ]] --
-local CreditsSection = MainTab:NewSection("punya naa")
-CreditsSection:NewLabel("Script Loader Active ✅")
+-- [[ 1. AUTOFARM (FIXED) ]] --
+Tab:AddToggle({
+    Name = "AutoFarm",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoFarm = Value
+        while _G.AutoFarm do
+            task.wait(1)
+            if isInMatch() then
+                pcall(function()
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj.Name == "ExitDoor" or obj.Name == "EscapePortal" or obj.Name:lower():find("exit") then
+                            local char = Player.Character
+                            if char and char:FindFirstChild("HumanoidRootPart") then
+                                if obj:IsA("BasePart") then
+                                    char.HumanoidRootPart.CFrame = obj.CFrame * CFrame.new(0, 2, 0)
+                                elseif obj:IsA("Model") then
+                                    char.HumanoidRootPart.CFrame = obj:GetPivot() * CFrame.new(0, 2, 0)
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end    
+})
+
+-- [[ 2. UNLOCK DOORS ]] --
+Tab:AddToggle({
+    Name = "Unlock Doors",
+    Default = false,
+    Callback = function(Value)
+        _G.UnlockDoors = Value
+        while _G.UnlockDoors do
+            task.wait(0.3)
+            if isInMatch() then
+                pcall(function()
+                    for _, door in pairs(workspace:GetDescendants()) do
+                        if door.Name:lower():find("door") or door.Name:lower():find("gate") then
+                            local prompt = door:FindFirstChildOfClass("ProximityPrompt")
+                            if prompt then
+                                prompt.MaxActivationDistance = 50 -- Jarak wajar agar tidak di-kick anti-cheat
+                                fireproximityprompt(prompt)
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end    
+})
+
+-- [[ 3. PICKUP KEYS ]] --
+Tab:AddToggle({
+    Name = "Pickup Keys",
+    Default = false,
+    Callback = function(Value)
+        _G.PickupKeys = Value
+        while _G.PickupKeys do
+            task.wait(0.5)
+            if isInMatch() then
+                pcall(function()
+                    local char = Player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        for _, obj in pairs(workspace:GetDescendants()) do
+                            if obj.Name:lower():find("key") or obj.Name:lower():find("kunci") then
+                                -- Bawa kunci langsung ke posisi karakter secara halus
+                                if obj:IsA("BasePart") then
+                                    obj.CFrame = char.HumanoidRootPart.CFrame
+                                elseif obj:IsA("Model") then
+                                    obj:PivotTo(char.HumanoidRootPart.CFrame)
+                                end
+                                
+                                local prompt = obj:FindFirstChildOfClass("ProximityPrompt") or obj.Parent:FindFirstChildOfClass("ProximityPrompt")
+                                if prompt then fireproximityprompt(prompt) end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end    
+})
+
+-- [[ 4. JOIN GAME ]] --
+Tab:AddToggle({
+    Name = "Join Game",
+    Default = false,
+    Callback = function(Value)
+        _G.JoinGame = Value
+        while _G.JoinGame do
+            task.wait(1)
+            pcall(function()
+                -- Hanya menekan tombol join jika posisi pemain SEDANG di lobi
+                if not isInMatch() then
+                    local gui = Player:FindFirstChildOfClass("PlayerGui")
+                    if gui then
+                        for _, v in pairs(gui:GetDescendants()) do
+                            if v:IsA("TextButton") and (v.Text:lower():find("join") or v.Name:lower():find("join") or v.Text:lower():find("play")) then
+                                if v.Visible then
+                                    firesignal(v.MouseButton1Click)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end    
+})
+
+OrionLib:Init()
