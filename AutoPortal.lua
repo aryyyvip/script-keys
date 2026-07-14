@@ -1,3 +1,7 @@
+-- ==========================================
+-- SCRIPT FULL: GUI + AUTO FARM BUTA (BLIND INTERACT)
+-- ==========================================
+
 -- Menunggu game dimuat sepenuhnya
 if not game:IsLoaded() then game.Loaded:Wait() end
 
@@ -5,7 +9,7 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 
--- Mencegah GUI menumpuk jika Anda meng-execute script berkali-kali
+-- Mencegah GUI menumpuk (Menghapus GUI lama jika ada)
 if CoreGui:FindFirstChild("CustomKeysGUI") then
     CoreGui.CustomKeysGUI:Destroy()
 end
@@ -18,9 +22,8 @@ local Toggles = {
 }
 
 -- ==========================================
--- 1. MEMBUAT TAMPILAN GUI (Dengan Tombol Minimize & Close)
+-- 1. MEMBUAT TAMPILAN GUI (Dengan Tombol - dan X)
 -- ==========================================
-
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomKeysGUI"
 ScreenGui.Parent = CoreGui 
@@ -32,10 +35,10 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
 MainFrame.Draggable = true
-MainFrame.ClipsDescendants = true -- Penting: agar isi kotak hilang saat di-minimize
+MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
--- Top Bar (Untuk menaruh judul dan tombol kontrol)
+-- Top Bar (Menyimpan Judul dan Tombol)
 local TopBar = Instance.new("Frame")
 TopBar.Size = UDim2.new(1, 0, 0, 35)
 TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
@@ -67,7 +70,7 @@ MinBtn.Position = UDim2.new(1, -65, 0, 2)
 MinBtn.BackgroundTransparency = 1
 MinBtn.Text = "-"
 MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-MinBtn.TextSize = 20
+MinBtn.TextSize = 22
 MinBtn.Parent = TopBar
 
 -- Tombol Close (X)
@@ -77,11 +80,11 @@ CloseBtn.Position = UDim2.new(1, -30, 0, 2)
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.Text = "X"
 CloseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-CloseBtn.TextSize = 16
+CloseBtn.TextSize = 18
 CloseBtn.Font = Enum.Font.SourceSansBold
 CloseBtn.Parent = TopBar
 
--- Kontainer Isi GUI (Agar mudah disembunyikan saat minimize)
+-- Kontainer Isi (Agar bisa disembunyikan saat minimize)
 local ContentContainer = Instance.new("Frame")
 ContentContainer.Size = UDim2.new(1, 0, 1, -35)
 ContentContainer.Position = UDim2.new(0, 0, 0, 35)
@@ -122,15 +125,10 @@ local function CreateToggle(name, yPos, varName)
 
     Button.MouseButton1Click:Connect(function()
         Toggles[varName] = not Toggles[varName]
-        if Toggles[varName] then
-            Button.Text = "✓"
-        else
-            Button.Text = ""
-        end
+        Button.Text = Toggles[varName] and "✓" or ""
     end)
 end
 
--- Posisi Y disesuaikan sedikit agar pas dengan desain
 CreateToggle("AutoFarm", 45, "AutoFarm")
 CreateToggle("Unlock Doors", 80, "UnlockDoors")
 CreateToggle("Pickup Keys", 115, "PickupKeys")
@@ -163,172 +161,119 @@ FooterSubtext.TextSize = 12
 FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
--- Animasi & Logika Tombol
+-- Logika Tombol Minimize & Close
 local isMinimized = false
 MinBtn.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
-        MainFrame.Size = UDim2.new(0, 220, 0, 35) -- Menyusut jadi sebatas judul
+        MainFrame.Size = UDim2.new(0, 220, 0, 35)
+        ContentContainer.Visible = false
     else
-        MainFrame.Size = UDim2.new(0, 220, 0, 260) -- Kembali ke ukuran normal
+        MainFrame.Size = UDim2.new(0, 220, 0, 260)
+        ContentContainer.Visible = true
     end
 end)
 
 CloseBtn.MouseButton1Click:Connect(function()
-    Toggles.AutoFarm = false -- Mematikan proses latar belakang
-    ScreenGui:Destroy() -- Menghancurkan GUI sepenuhnya
+    Toggles.AutoFarm = false 
+    ScreenGui:Destroy() 
 end)
 
-
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Bekerja di Latar Belakang)
+-- 2. LOGIKA FITUR SCRIPT (INTERAKSI BUTA)
 -- ==========================================
-
 task.spawn(function()
     while task.wait(0.2) do
-        -- Jika AutoFarm dimatikan atau GUI sudah di-close, jangan jalankan script
         if not Toggles.AutoFarm then continue end
         if not ScreenGui.Parent then break end 
         
-        local character = LocalPlayer.Character
-        if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
-        local rootPart = character.HumanoidRootPart
-        local humanoid = character:FindFirstChild("Humanoid")
-        
-        -- ========================================
-        -- [UPDATE] FITUR AUTO-EQUIP MENGGUNAKAN HUMANOID API
-        -- ========================================
-        local hasEquippedKey = false
-        
-        -- Periksa apakah pemain sudah memegang kunci
-        for _, tool in pairs(character:GetChildren()) do
-            if tool:IsA("Tool") and (string.find(string.lower(tool.Name), "key") or string.find(string.lower(tool.Name), "kunci")) then
-                hasEquippedKey = true
-            end
-        end
-        
-        -- Jika belum pegang, cari di tas (Backpack) dan panggil EquipTool
-        if not hasEquippedKey then
+        pcall(function()
+            local character = LocalPlayer.Character
+            if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+            local rootPart = character.HumanoidRootPart
+            local humanoid = character:FindFirstChild("Humanoid")
+            
+            -- AUTO EQUIP APAPUN YANG ADA DI TAS
             local backpack = LocalPlayer:FindFirstChild("Backpack")
             if backpack and humanoid then
                 for _, tool in pairs(backpack:GetChildren()) do
-                    if tool:IsA("Tool") and (string.find(string.lower(tool.Name), "key") or string.find(string.lower(tool.Name), "kunci")) then
+                    if tool:IsA("Tool") then
                         humanoid:EquipTool(tool)
-                        hasEquippedKey = true
-                        task.wait(0.2) -- Jeda kecil agar server mendaftarkan kunci di tangan
+                        task.wait(0.1)
                     end
                 end
             end
-        end
-        
-        local keys = {}
-        local doors = {}
-        local portals = {}
-        
-        -- ========================================
-        -- PEMINDAIAN & FILTERING OBJEK
-        -- ========================================
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") then
-                
-                -- SANGAT PENTING: Abaikan prompt yang menempel pada tubuh/tangan karakter
-                if obj:IsDescendantOf(character) then continue end
-                
-                local aText = string.lower(obj.ActionText)
-                local oText = string.lower(obj.ObjectText)
-                local pName = string.lower(obj.Parent.Name)
-                local oName = string.lower(obj.Name)
-                
-                local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk")
-                local isKey = string.find(oText, "kunci") or string.find(oText, "key") or string.find(pName, "key") or string.find(oName, "key")
-                local isDoor = string.find(oText, "pintu") or string.find(oText, "door") or string.find(pName, "door") or string.find(pName, "lock") or string.find(pName, "padlock") or string.find(oText, "gembok") or string.find(aText, "buka") or string.find(aText, "open") or string.find(aText, "unlock")
-
-                if obj.Parent and obj.Parent:IsA("BasePart") then
-                    local dist = (rootPart.Position - obj.Parent.Position).Magnitude
-                    local itemData = {prompt = obj, part = obj.Parent, distance = dist}
+            
+            local interactables = {}
+            local portals = {}
+            
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
+                    -- Abaikan jika prompt itu menempel di badan pemain sendiri
+                    if obj:IsDescendantOf(character) then continue end
                     
-                    if isPortal then
-                        table.insert(portals, itemData)
-                    elseif isKey then
-                        table.insert(keys, itemData)
-                    elseif isDoor then
-                        table.insert(doors, itemData)
+                    local aText = string.lower(obj.ActionText)
+                    local pName = string.lower(obj.Parent and obj.Parent.Name or "")
+                    
+                    -- Filter Portal
+                    local isPortal = string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "keluar") or string.find(aText, "masuk") or string.find(pName, "portal")
+
+                    if obj.Parent and obj.Parent:IsA("BasePart") then
+                        local dist = (rootPart.Position - obj.Parent.Position).Magnitude
+                        local itemData = {prompt = obj, part = obj.Parent, distance = dist}
+                        
+                        if isPortal then
+                            table.insert(portals, itemData)
+                        else
+                            -- MASUKKAN SEMUA BENDA LAINNYA KE SINI (Kunci, Pintu, Topi, Laci, dll)
+                            table.insert(interactables, itemData)
+                        end
                     end
                 end
             end
-        end
-        
-        local function sortClosest(a, b)
-            return a.distance < b.distance
-        end
-        table.sort(keys, sortClosest)
-        table.sort(doors, sortClosest)
-        table.sort(portals, sortClosest)
-        
-        local actionTaken = false
+            
+            table.sort(interactables, function(a, b) return a.distance < b.distance end)
+            table.sort(portals, function(a, b) return a.distance < b.distance end)
+            
+            local actionTaken = false
 
-        -- ========================================
-        -- EKSEKUSI TARGET
-        -- ========================================
-
-        -- 1. KUNCI
-        if Toggles.PickupKeys and #keys > 0 then
-            local target = keys[1]
-            if target.distance < 400 then
-                target.prompt.Enabled = true
-                target.prompt.MaxActivationDistance = 50
-                
-                rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(3, 3, 3), target.part.Position)
-                task.wait(0.2)
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
+            -- EKSEKUSI 1: BUKA/AMBIL APAPUN YANG ADA DI DEKAT PEMAIN
+            if (Toggles.PickupKeys or Toggles.UnlockDoors) and #interactables > 0 then
+                local target = interactables[1]
+                if target.distance < 400 then
+                    target.prompt.Enabled = true
+                    
+                    -- Mendarat tepat di atas benda tersebut agar tidak nyangkut
+                    rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0), target.part.Position)
+                    task.wait(0.2) 
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                        task.wait(0.1)
+                        fireproximityprompt(target.prompt, 1, true) -- Tembak 2x untuk memastikan
+                    end
+                    
+                    actionTaken = true
+                    task.wait(0.4)
                 end
-                
-                actionTaken = true
-                task.wait(0.3)
             end
-        end
 
-        -- 2. PINTU (Berjalan jika tidak ada aksi ambil kunci di loop ini)
-        if Toggles.UnlockDoors and not actionTaken and #doors > 0 then
-            local target = doors[1]
-            if target.distance < 400 then
-                target.prompt.Enabled = true
-                target.prompt.MaxActivationDistance = 50
-                
-                rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(2, 2, 2), target.part.Position)
-                
-                -- Jeda agak lama (0.4 detik) agar server menyadari Anda sedang di depan pintu sambil bawa kunci
-                task.wait(0.4) 
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
-                    task.wait(0.1)
-                    -- Menembakkan dua kali sebagai langkah anti-gagal
-                    fireproximityprompt(target.prompt, 1, true) 
+            -- EKSEKUSI 2: MASUK PORTAL
+            if Toggles.JoinGame and not actionTaken then
+                if #portals > 0 and portals[1].distance < 400 then
+                    local target = portals[1]
+                    rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
+                    task.wait(0.2)
+                    
+                    if fireproximityprompt then
+                        fireproximityprompt(target.prompt, 1, true)
+                    end
+                    task.wait(5)
                 end
-                
-                actionTaken = true
-                task.wait(0.5) 
             end
-        end
-
-        -- 3. PORTAL
-        if Toggles.JoinGame and not actionTaken then
-            if #portals > 0 and portals[1].distance < 400 then
-                local target = portals[1]
-                rootPart.CFrame = CFrame.new(target.part.Position + Vector3.new(0, 3, 0))
-                task.wait(0.2)
-                
-                if fireproximityprompt then
-                    fireproximityprompt(target.prompt, 1, true)
-                end
-                task.wait(5)
-            end
-        end
-
+            
+        end)
     end
 end)
 
-print("Custom GUI + Close/Minimize + Fixed Doors loaded successfully!")
+print("GUI & Script berhasil dimuat ulang sepenuhnya!")
