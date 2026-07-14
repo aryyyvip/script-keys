@@ -127,7 +127,7 @@ FooterSubtext.Font = Enum.Font.SourceSans
 FooterSubtext.Parent = FooterFrame
 
 -- ==========================================
--- 2. LOGIKA FITUR SCRIPT (Final: Eksekusi Linear Berbasis Kondisi)
+-- 2. LOGIKA FITUR SCRIPT (Radius/Distance Check)
 -- ==========================================
 
 task.spawn(function()
@@ -138,8 +138,6 @@ task.spawn(function()
         if not character or not character:FindFirstChild("HumanoidRootPart") then continue end
         local rootPart = character.HumanoidRootPart
         
-        -- Kita hanya butuh satu variabel status untuk memastikan
-        -- script hanya melakukan SATU aksi per iterasi loop
         local actionTaken = false
         
         -- ========================================
@@ -164,8 +162,8 @@ task.spawn(function()
                         end
                         
                         actionTaken = true
-                        task.wait(0.5) -- Jeda stabilisasi setelah mengambil item
-                        break -- Hentikan pencarian, ulangi loop dari awal
+                        task.wait(0.2) -- Jeda cepat setelah ambil kunci
+                        break
                     end
                 end
             end
@@ -193,7 +191,7 @@ task.spawn(function()
                         end
                         
                         actionTaken = true
-                        task.wait(0.5)
+                        task.wait(0.2)
                         break 
                     end
                 end
@@ -201,45 +199,57 @@ task.spawn(function()
         end
 
         -- ========================================
-        -- 3. PRIORITAS TERAKHIR: PORTAL (MASUK LOBBY / KELUAR GAME)
+        -- 3. PRIORITAS TERAKHIR: PORTAL (Dengan Batas Jarak)
         -- ========================================
-        -- Portal HANYA akan dieksekusi jika tidak ada satupun Kunci atau Pintu yang bisa diambil/dibuka
         if Toggles.JoinGame and not actionTaken then
-            -- A. Cari Portal berbasis Tombol (Exit Door, dsb)
+            -- Batas maksimal radius teleport portal (dalam satuan studs)
+            local maxPortalDistance = 300 
+            
+            -- A. Portal berbasis Tombol (Exit Door, Start Game, dsb)
             for _, obj in pairs(workspace:GetDescendants()) do
                 if obj:IsA("ProximityPrompt") and obj.Enabled then
                     local aText = string.lower(obj.ActionText)
                     if string.find(aText, "join") or string.find(aText, "play") or string.find(aText, "enter") or string.find(aText, "exit") or string.find(aText, "escape") then
-                        rootPart.CFrame = obj.Parent.CFrame
-                        task.wait(0.1)
-                        if fireproximityprompt then
-                            fireproximityprompt(obj, 1, true)
+                        
+                        -- CEK JARAK (Magnitude)
+                        local distance = (rootPart.Position - obj.Parent.Position).Magnitude
+                        if distance <= maxPortalDistance then
+                            rootPart.CFrame = obj.Parent.CFrame
+                            task.wait(0.1)
+                            if fireproximityprompt then
+                                fireproximityprompt(obj, 1, true)
+                            end
+                            actionTaken = true
+                            task.wait(5) -- Jeda transisi aman
+                            break
                         end
-                        actionTaken = true
-                        task.wait(5) -- Jeda loading screen
-                        break
                     end
                 end
             end
             
-            -- B. Jika tidak ada portal tombol, cari Portal sentuh (seperti yang di Lobby)
+            -- B. Portal berbasis Sentuhan (Portal ungu Lobi)
             if not actionTaken then
                 for _, obj in pairs(workspace:GetDescendants()) do
                     if obj.Name == "TouchTransmitter" or obj.Name == "TouchInterest" then
                         local portalPart = obj.Parent
                         if portalPart and portalPart:IsA("BasePart") then
-                            rootPart.CFrame = portalPart.CFrame
-                            task.wait(0.1)
                             
-                            if firetouchinterest then
-                                firetouchinterest(rootPart, portalPart, 0)
+                            -- CEK JARAK (Magnitude)
+                            local distance = (rootPart.Position - portalPart.Position).Magnitude
+                            if distance <= maxPortalDistance then
+                                rootPart.CFrame = portalPart.CFrame
                                 task.wait(0.1)
-                                firetouchinterest(rootPart, portalPart, 1)
+                                
+                                if firetouchinterest then
+                                    firetouchinterest(rootPart, portalPart, 0)
+                                    task.wait(0.1)
+                                    firetouchinterest(rootPart, portalPart, 1)
+                                end
+                                
+                                actionTaken = true
+                                task.wait(8) -- Jeda loading arena
+                                break
                             end
-                            
-                            actionTaken = true
-                            task.wait(10) -- Jeda panjang untuk loading room
-                            break
                         end
                     end
                 end
@@ -249,4 +259,4 @@ task.spawn(function()
     end
 end)
 
-print("Custom GUI v5.0 (Linear Execution Applied) loaded successfully!")
+print("Custom GUI v6.0 (Magnitude Check Applied) loaded successfully!")
